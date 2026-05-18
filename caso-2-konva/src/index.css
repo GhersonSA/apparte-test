@@ -177,6 +177,14 @@ body {
   margin: 2px 0;
 }
 
+.hint-success {
+  color: #86efac;
+}
+
+.hint-error {
+  color: #fca5a5;
+}
+
 .json-panel {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
@@ -218,7 +226,23 @@ body {
   outline: none;
 }
 
+.field select {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2ebf5;
+  font-size: 13px;
+  padding: 8px 9px;
+  outline: none;
+}
+
 .field input:focus {
+  border-color: rgba(34, 197, 94, 0.8);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+}
+
+.field select:focus {
   border-color: rgba(34, 197, 94, 0.8);
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
 }

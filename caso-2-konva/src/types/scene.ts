@@ -1,8 +1,12 @@
 export type SceneElementType = "vehicle" | "obstacle" | "reference";
+export type SceneElementStatus = "free" | "occupied";
+export type SceneZoneType = "vehicle-zone" | "obstacle-zone" | "reference-zone";
 
 type BaseSceneElement<TType extends SceneElementType, TProperties> = {
   id: string;
   type: TType;
+  status: SceneElementStatus;
+  zoneType: SceneZoneType;
   x: number;
   y: number;
   rotation: number;
@@ -56,7 +60,7 @@ export type SceneMeta = {
 };
 
 export type SceneSnapshot = {
-  version: 3;
+  version: 4;
   generatedAt: string;
   selectedElementId: string | null;
   meta: SceneMeta;
@@ -92,6 +96,8 @@ export function createSceneElement(
     return {
       id: createId(),
       type,
+      status: "free",
+      zoneType: "vehicle-zone",
       x: baseX,
       y: baseY,
       rotation: 0,
@@ -114,6 +120,8 @@ export function createSceneElement(
     return {
       id: createId(),
       type,
+      status: "occupied",
+      zoneType: "obstacle-zone",
       x: baseX,
       y: baseY,
       rotation: 0,
@@ -134,6 +142,8 @@ export function createSceneElement(
   return {
     id: createId(),
     type,
+    status: "free",
+    zoneType: "reference-zone",
     x: baseX,
     y: baseY,
     rotation: 0,

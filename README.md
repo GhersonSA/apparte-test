@@ -7,11 +7,14 @@ Repositorio de la prueba técnica fullstack. La solución está organizada por c
 - `caso-1-multitenant/`
   - `backend/`: Node.js + Express + Prisma + PostgreSQL
   - `frontend/`: React + Vite + TailwindCSS
+- `caso-2-konva/`
+  - `frontend`: React + Konva (representacion visual interactiva)
 - `docker-compose.yml`: orquestación local de base de datos, backend y frontend
 
 ## Documentación por caso
 
 - Caso 1: `caso-1-multitenant/README.md`
+- Caso 2: `caso-2-konva/README.md`
 
 ## Arranque local (en 1 minuto)
 

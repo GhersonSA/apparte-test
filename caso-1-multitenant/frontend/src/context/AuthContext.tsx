@@ -85,7 +85,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         throw error;
       }
 
-      throw new Error("Error inesperado al iniciar sesion");
+      throw new Error("Error inesperado al iniciar sesión");
     }
   }
 

@@ -1,6 +1,6 @@
 # Caso Practico 2 · Representacion visual interactiva de accidentes
 
-Fase 2 implementada con React + Konva.
+Fase 3 implementada con React + Konva.
 
 ## Alcance de esta fase
 
@@ -13,6 +13,10 @@ Fase 2 implementada con React + Konva.
   - Referencia
 - Drag and drop de todos los elementos sobre el lienzo.
 - Seleccion de elementos desde el canvas.
+- Interacciones de transformacion con Konva Transformer:
+  - rotacion con snap angular
+  - escala mediante handlers
+  - limites minimos para evitar colapso visual
 - Inspector para editar propiedades principales:
   - posicion (x, y)
   - rotacion
@@ -45,6 +49,7 @@ Ademas, la escena exporta metadatos:
 - `meta.gridSize`
 - `meta.background`
 - `selectedElementId`
+- `version`: `3`
 
 Ejemplo:
 

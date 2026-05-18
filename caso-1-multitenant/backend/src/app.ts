@@ -4,6 +4,7 @@ import express from "express";
 import { env } from "./config/env";
 import { errorHandler } from "./middlewares/error-handler";
 import { authRouter } from "./modules/auth/auth.routes";
+import { reportsRouter } from "./modules/reports/reports.routes";
 
 export function createApp() {
   const app = express();
@@ -16,6 +17,7 @@ export function createApp() {
   app.use(express.json());
 
   app.use("/api/auth", authRouter);
+  app.use("/api/reports", reportsRouter);
 
   app.get("/api/health", (_req, res) => {
     res.json({

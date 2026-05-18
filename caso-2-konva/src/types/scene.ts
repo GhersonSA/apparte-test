@@ -6,6 +6,12 @@ type BaseSceneElement<TType extends SceneElementType, TProperties> = {
   x: number;
   y: number;
   rotation: number;
+  scaleX: number;
+  scaleY: number;
+  zIndex: number;
+  locked: boolean;
+  createdAt: string;
+  updatedAt: string;
   properties: TProperties;
 };
 
@@ -42,9 +48,18 @@ export type SceneElement =
   | ObstacleSceneElement
   | ReferenceSceneElement;
 
+export type SceneMeta = {
+  canvasWidth: number;
+  canvasHeight: number;
+  gridSize: number;
+  background: string;
+};
+
 export type SceneSnapshot = {
-  version: number;
+  version: 2;
   generatedAt: string;
+  selectedElementId: string | null;
+  meta: SceneMeta;
   elements: SceneElement[];
 };
 
@@ -66,6 +81,7 @@ export function createSceneElement(
   type: SceneElementType,
   existingCount: number
 ): SceneElement {
+  const now = new Date().toISOString();
   const row = Math.floor(existingCount / 4);
   const column = existingCount % 4;
 
@@ -79,6 +95,12 @@ export function createSceneElement(
       x: baseX,
       y: baseY,
       rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      zIndex: existingCount,
+      locked: false,
+      createdAt: now,
+      updatedAt: now,
       properties: {
         label: `Vehiculo ${existingCount + 1}`,
         color: "#38bdf8",
@@ -95,6 +117,12 @@ export function createSceneElement(
       x: baseX,
       y: baseY,
       rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      zIndex: existingCount,
+      locked: false,
+      createdAt: now,
+      updatedAt: now,
       properties: {
         label: `Obstaculo ${existingCount + 1}`,
         color: "#f97316",
@@ -109,6 +137,12 @@ export function createSceneElement(
     x: baseX,
     y: baseY,
     rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    zIndex: existingCount,
+    locked: false,
+    createdAt: now,
+    updatedAt: now,
     properties: {
       label: `Referencia ${existingCount + 1}`,
       color: "#22c55e",

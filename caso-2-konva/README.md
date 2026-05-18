@@ -1,6 +1,6 @@
 # Caso Practico 2 · Representacion visual interactiva de accidentes
 
-Fase 5 implementada con React + Konva.
+Fase 7 (bonus) implementada con React + Konva.
 
 ## Alcance de esta fase
 
@@ -39,6 +39,11 @@ Fase 5 implementada con React + Konva.
   - confirmacion en acciones destructivas
   - botones deshabilitados cuando no aplican
   - feedback visual contextual (success/info/warning/error)
+- Replay tipo VAR por keyframes:
+  - captura de T1 a T5 por objeto seleccionado
+  - reproduccion interpolada entre keyframes
+  - visualizacion del segmento activo (T1 -> T2 -> T3 -> T4 -> T5)
+  - composicion de la animacion con multiples objetos simultaneamente
 
 ## Atajos de teclado
 
@@ -46,6 +51,8 @@ Fase 5 implementada con React + Konva.
 - `Ctrl + S`: guardar borrador en localStorage.
 - `Ctrl + L`: cargar borrador desde localStorage.
 - `Ctrl + E`: exportar JSON.
+- `Ctrl + P`: iniciar/detener replay.
+- `Esc`: detener replay activo.
 
 ## Modelo de datos utilizado
 

@@ -17,6 +17,8 @@ const GRID_SIZE = 40;
 const SCENE_BACKGROUND = "#111827";
 const DRAFT_STORAGE_KEY = "case2-scene-draft-v4";
 const FEEDBACK_TIMEOUT_MS = 2600;
+const REPLAY_SEGMENT_MS = 1200;
+const KEYFRAME_SLOTS = ["T1", "T2", "T3", "T4", "T5"] as const;
 
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -57,6 +59,16 @@ type UiFeedback = {
   kind: "success" | "error" | "info" | "warning";
   text: string;
 };
+
+type KeyframeSlot = (typeof KEYFRAME_SLOTS)[number];
+
+type ElementKeyframe = {
+  slot: KeyframeSlot;
+  capturedAt: string;
+  element: SceneElement;
+};
+
+type KeyframesByElement = Record<string, Partial<Record<KeyframeSlot, ElementKeyframe>>>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -418,6 +430,98 @@ function parseNumber(value: string, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function cloneSceneElements(elements: SceneElement[]) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(elements) as SceneElement[];
+  }
+
+  return JSON.parse(JSON.stringify(elements)) as SceneElement[];
+}
+
+function lerp(start: number, end: number, progress: number) {
+  return start + (end - start) * progress;
+}
+
+function interpolateElementsForReplay(
+  fromElements: SceneElement[],
+  toElements: SceneElement[],
+  progress: number
+): SceneElement[] {
+  const toById = new Map(toElements.map((element) => [element.id, element]));
+  const now = new Date().toISOString();
+
+  return fromElements
+    .map((fromElement) => {
+      const toElement = toById.get(fromElement.id);
+
+      if (!toElement) {
+        return fromElement;
+      }
+
+      if (fromElement.type === "vehicle" && toElement.type === "vehicle") {
+        return {
+          ...fromElement,
+          x: Number(lerp(fromElement.x, toElement.x, progress).toFixed(2)),
+          y: Number(lerp(fromElement.y, toElement.y, progress).toFixed(2)),
+          rotation: Number(lerp(fromElement.rotation, toElement.rotation, progress).toFixed(2)),
+          scaleX: Number(lerp(fromElement.scaleX, toElement.scaleX, progress).toFixed(2)),
+          scaleY: Number(lerp(fromElement.scaleY, toElement.scaleY, progress).toFixed(2)),
+          zIndex: progress < 1 ? fromElement.zIndex : toElement.zIndex,
+          locked: progress < 1 ? fromElement.locked : toElement.locked,
+          status: progress < 1 ? fromElement.status : toElement.status,
+          zoneType: progress < 1 ? fromElement.zoneType : toElement.zoneType,
+          properties: progress < 1 ? fromElement.properties : toElement.properties,
+          updatedAt: now
+        };
+      }
+
+      if (fromElement.type === "obstacle" && toElement.type === "obstacle") {
+        return {
+          ...fromElement,
+          x: Number(lerp(fromElement.x, toElement.x, progress).toFixed(2)),
+          y: Number(lerp(fromElement.y, toElement.y, progress).toFixed(2)),
+          rotation: Number(lerp(fromElement.rotation, toElement.rotation, progress).toFixed(2)),
+          scaleX: Number(lerp(fromElement.scaleX, toElement.scaleX, progress).toFixed(2)),
+          scaleY: Number(lerp(fromElement.scaleY, toElement.scaleY, progress).toFixed(2)),
+          zIndex: progress < 1 ? fromElement.zIndex : toElement.zIndex,
+          locked: progress < 1 ? fromElement.locked : toElement.locked,
+          status: progress < 1 ? fromElement.status : toElement.status,
+          zoneType: progress < 1 ? fromElement.zoneType : toElement.zoneType,
+          properties: progress < 1 ? fromElement.properties : toElement.properties,
+          updatedAt: now
+        };
+      }
+
+      if (fromElement.type === "reference" && toElement.type === "reference") {
+        return {
+          ...fromElement,
+          x: Number(lerp(fromElement.x, toElement.x, progress).toFixed(2)),
+          y: Number(lerp(fromElement.y, toElement.y, progress).toFixed(2)),
+          rotation: Number(lerp(fromElement.rotation, toElement.rotation, progress).toFixed(2)),
+          scaleX: Number(lerp(fromElement.scaleX, toElement.scaleX, progress).toFixed(2)),
+          scaleY: Number(lerp(fromElement.scaleY, toElement.scaleY, progress).toFixed(2)),
+          zIndex: progress < 1 ? fromElement.zIndex : toElement.zIndex,
+          locked: progress < 1 ? fromElement.locked : toElement.locked,
+          status: progress < 1 ? fromElement.status : toElement.status,
+          zoneType: progress < 1 ? fromElement.zoneType : toElement.zoneType,
+          properties: progress < 1 ? fromElement.properties : toElement.properties,
+          updatedAt: now
+        };
+      }
+
+      return fromElement;
+    })
+    .sort((a, b) => a.zIndex - b.zIndex);
+}
+
+function formatKeyframeTime(value: string) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
+
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -431,16 +535,23 @@ function App() {
   const stageContainerRef = useRef<HTMLDivElement>(null);
   const transformerRef = useRef<KonvaTransformer | null>(null);
   const elementNodeRefs = useRef<Record<string, KonvaGroup | null>>({});
+  const replayFrameRef = useRef<number | null>(null);
+  const replayCancelledRef = useRef(false);
+  const replayRunningRef = useRef(false);
   const shortcutActionsRef = useRef<{
     removeSelectedElement: (skipConfirmation?: boolean) => void;
     saveDraftToLocalStorage: () => void;
     loadDraftFromLocalStorage: (silentWhenMissing?: boolean) => void;
     exportSceneJson: () => void;
+    playReplay: () => void;
+    stopReplay: (notify?: boolean) => void;
   }>({
     removeSelectedElement: () => undefined,
     saveDraftToLocalStorage: () => undefined,
     loadDraftFromLocalStorage: () => undefined,
-    exportSceneJson: () => undefined
+    exportSceneJson: () => undefined,
+    playReplay: () => undefined,
+    stopReplay: () => undefined
   });
 
   const [selectedType, setSelectedType] = useState<SceneElementType>("vehicle");
@@ -448,6 +559,11 @@ function App() {
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ width: 960, height: 580 });
   const [uiFeedback, setUiFeedback] = useState<UiFeedback | null>(null);
+  const [keyframesByElement, setKeyframesByElement] = useState<KeyframesByElement>({});
+  const [isReplayRunning, setIsReplayRunning] = useState(false);
+  const [activeReplaySegment, setActiveReplaySegment] = useState<string | null>(null);
+
+  replayRunningRef.current = isReplayRunning;
 
   useEffect(() => {
     const container = stageContainerRef.current;
@@ -491,6 +607,14 @@ function App() {
     };
   }, [uiFeedback]);
 
+  useEffect(() => {
+    return () => {
+      if (replayFrameRef.current !== null) {
+        window.cancelAnimationFrame(replayFrameRef.current);
+      }
+    };
+  }, []);
+
   const sceneMeta = useMemo<SceneMeta>(
     () => ({
       canvasWidth: stageSize.width,
@@ -509,6 +633,37 @@ function App() {
   const elementsSorted = useMemo(
     () => [...elements].sort((a, b) => a.zIndex - b.zIndex),
     [elements]
+  );
+
+  const selectedKeyframes = useMemo<Partial<Record<KeyframeSlot, ElementKeyframe>>>(
+    () => (selectedElementId ? keyframesByElement[selectedElementId] ?? {} : {}),
+    [keyframesByElement, selectedElementId]
+  );
+
+  const selectedKeyframesCount = useMemo(
+    () => KEYFRAME_SLOTS.filter((slot) => Boolean(selectedKeyframes[slot])).length,
+    [selectedKeyframes]
+  );
+
+  const keyframeTransitions = useMemo<Array<[KeyframeSlot, KeyframeSlot]>>(
+    () =>
+      KEYFRAME_SLOTS.slice(0, -1).map((slot, index) => [
+        slot,
+        KEYFRAME_SLOTS[index + 1]
+      ] as [KeyframeSlot, KeyframeSlot]),
+    []
+  );
+
+  const replayReadyElementIds = useMemo(
+    () =>
+      Object.entries(keyframesByElement)
+        .filter(([, timeline]) =>
+          keyframeTransitions.some(([fromSlot, toSlot]) =>
+            Boolean(timeline[fromSlot] && timeline[toSlot])
+          )
+        )
+        .map(([elementId]) => elementId),
+    [keyframeTransitions, keyframesByElement]
   );
 
   useEffect(() => {
@@ -837,6 +992,11 @@ function App() {
     }
 
     setElements((prev) => prev.filter((element) => element.id !== selectedElement.id));
+    setKeyframesByElement((prev) => {
+      const next = { ...prev };
+      delete next[selectedElement.id];
+      return next;
+    });
     setSelectedElementId(null);
     setUiFeedback({ kind: "info", text: "Elemento eliminado de la escena." });
   }
@@ -858,7 +1018,9 @@ function App() {
     }
 
     setElements([]);
+    setKeyframesByElement({});
     setSelectedElementId(null);
+    setActiveReplaySegment(null);
     setUiFeedback({ kind: "info", text: "Escena reiniciada correctamente." });
   }
 
@@ -917,7 +1079,9 @@ function App() {
       }
 
       setElements(hydratedSnapshot.elements);
+      setKeyframesByElement({});
       setSelectedElementId(hydratedSnapshot.selectedElementId);
+      setActiveReplaySegment(null);
       setUiFeedback({ kind: "success", text: "Borrador cargado correctamente." });
     } catch {
       setUiFeedback({
@@ -975,11 +1139,219 @@ function App() {
     }
   }
 
+  function captureKeyframe(slot: KeyframeSlot) {
+    if (!selectedElement) {
+      setUiFeedback({
+        kind: "warning",
+        text: `Selecciona un objeto para guardar ${slot}.`
+      });
+      return;
+    }
+
+    const selectedElementSnapshot = cloneSceneElements([selectedElement])[0];
+
+    setKeyframesByElement((prev) => ({
+      ...prev,
+      [selectedElement.id]: {
+        ...(prev[selectedElement.id] ?? {}),
+        [slot]: {
+          slot,
+          capturedAt: new Date().toISOString(),
+          element: selectedElementSnapshot
+        }
+      }
+    }));
+
+    setUiFeedback({ kind: "success", text: `Keyframe ${slot} guardado para ${selectedElement.id}.` });
+  }
+
+  function clearKeyframes() {
+    if (!selectedElement) {
+      setUiFeedback({ kind: "warning", text: "Selecciona un objeto para limpiar su timeline." });
+      return;
+    }
+
+    if (selectedKeyframesCount === 0) {
+      setUiFeedback({ kind: "warning", text: "El objeto seleccionado no tiene keyframes guardados." });
+      return;
+    }
+
+    if (isReplayRunning) {
+      setUiFeedback({ kind: "warning", text: "Deten el replay antes de limpiar keyframes." });
+      return;
+    }
+
+    setKeyframesByElement((prev) => {
+      const next = { ...prev };
+      delete next[selectedElement.id];
+      return next;
+    });
+    setUiFeedback({ kind: "info", text: `Timeline eliminado para ${selectedElement.id}.` });
+  }
+
+  function stopReplay(notify = false) {
+    replayCancelledRef.current = true;
+
+    if (replayFrameRef.current !== null) {
+      window.cancelAnimationFrame(replayFrameRef.current);
+      replayFrameRef.current = null;
+    }
+
+    if (isReplayRunning) {
+      setIsReplayRunning(false);
+      setActiveReplaySegment(null);
+    }
+
+    if (notify) {
+      setUiFeedback({ kind: "info", text: "Replay detenido." });
+    }
+  }
+
+  function playReplay() {
+    if (isReplayRunning) {
+      return;
+    }
+
+    if (replayReadyElementIds.length === 0) {
+      const transitionsLabel = keyframeTransitions
+        .map(([fromSlot, toSlot]) => `${fromSlot}->${toSlot}`)
+        .join(", ");
+
+      setUiFeedback({
+        kind: "warning",
+        text: `No hay objetos con transiciones completas (${transitionsLabel}).`
+      });
+      return;
+    }
+
+    replayCancelledRef.current = false;
+    setSelectedElementId(null);
+    setIsReplayRunning(true);
+    setUiFeedback({ kind: "info", text: "Replay iniciado." });
+
+    const segmentPairs = keyframeTransitions;
+
+    let workingScene = cloneSceneElements(elements);
+    const firstSlot = KEYFRAME_SLOTS[0];
+    const firstSlotElementsById = new Map<string, SceneElement>();
+
+    Object.values(keyframesByElement).forEach((timeline) => {
+      const firstSlotKeyframe = timeline[firstSlot];
+
+      if (firstSlotKeyframe) {
+        firstSlotElementsById.set(
+          firstSlotKeyframe.element.id,
+          cloneSceneElements([firstSlotKeyframe.element])[0]
+        );
+      }
+    });
+
+    if (firstSlotElementsById.size > 0) {
+      const sceneById = new Map(workingScene.map((element) => [element.id, element]));
+      firstSlotElementsById.forEach((element, elementId) => {
+        sceneById.set(elementId, element);
+      });
+
+      workingScene = Array.from(sceneById.values()).sort((a, b) => a.zIndex - b.zIndex);
+      setElements(workingScene);
+    }
+
+    let segmentIndex = 0;
+
+    const runNextSegment = () => {
+      if (replayCancelledRef.current) {
+        return;
+      }
+
+      if (segmentIndex >= segmentPairs.length) {
+        setIsReplayRunning(false);
+        setActiveReplaySegment(null);
+        replayFrameRef.current = null;
+        setUiFeedback({ kind: "success", text: "Replay completado." });
+        return;
+      }
+
+      const [fromSlot, toSlot] = segmentPairs[segmentIndex];
+      const fromElements: SceneElement[] = [];
+      const toElements: SceneElement[] = [];
+
+      Object.values(keyframesByElement).forEach((timeline) => {
+        const fromKeyframe = timeline[fromSlot];
+        const toKeyframe = timeline[toSlot];
+
+        if (fromKeyframe && toKeyframe) {
+          fromElements.push(fromKeyframe.element);
+          toElements.push(toKeyframe.element);
+        }
+      });
+
+      if (fromElements.length === 0) {
+        segmentIndex += 1;
+        runNextSegment();
+        return;
+      }
+
+      const segmentLabel = `${fromSlot} -> ${toSlot}`;
+      const startedAt = performance.now();
+      const segmentBaseScene = cloneSceneElements(workingScene);
+
+      setActiveReplaySegment(segmentLabel);
+
+      const animateStep = (now: number) => {
+        if (replayCancelledRef.current) {
+          replayFrameRef.current = null;
+          return;
+        }
+
+        const progress = Math.min((now - startedAt) / REPLAY_SEGMENT_MS, 1);
+        const interpolatedParticipants = interpolateElementsForReplay(
+          fromElements,
+          toElements,
+          progress
+        );
+        const interpolatedById = new Map(
+          interpolatedParticipants.map((element) => [element.id, element])
+        );
+        const nextSceneById = new Map(segmentBaseScene.map((element) => [element.id, element]));
+
+        interpolatedById.forEach((element, elementId) => {
+          nextSceneById.set(elementId, element);
+        });
+
+        const nextScene = Array.from(nextSceneById.values()).sort((a, b) => a.zIndex - b.zIndex);
+
+        setElements(nextScene);
+
+        if (progress < 1) {
+          replayFrameRef.current = window.requestAnimationFrame(animateStep);
+          return;
+        }
+
+        const settledById = new Map(segmentBaseScene.map((element) => [element.id, element]));
+
+        toElements.forEach((element) => {
+          settledById.set(element.id, cloneSceneElements([element])[0]);
+        });
+
+        workingScene = Array.from(settledById.values()).sort((a, b) => a.zIndex - b.zIndex);
+        setElements(workingScene);
+        segmentIndex += 1;
+        runNextSegment();
+      };
+
+      replayFrameRef.current = window.requestAnimationFrame(animateStep);
+    };
+
+    runNextSegment();
+  }
+
   shortcutActionsRef.current = {
     removeSelectedElement,
     saveDraftToLocalStorage,
     loadDraftFromLocalStorage,
-    exportSceneJson
+    exportSceneJson,
+    playReplay,
+    stopReplay
   };
 
   useEffect(() => {
@@ -1012,6 +1384,23 @@ function App() {
       if (ctrlOrMeta && key === "l") {
         event.preventDefault();
         shortcutActionsRef.current.loadDraftFromLocalStorage(false);
+        return;
+      }
+
+      if (ctrlOrMeta && key === "p") {
+        event.preventDefault();
+
+        if (replayRunningRef.current) {
+          shortcutActionsRef.current.stopReplay(true);
+        } else {
+          shortcutActionsRef.current.playReplay();
+        }
+        return;
+      }
+
+      if (key === "escape" && replayRunningRef.current) {
+        event.preventDefault();
+        shortcutActionsRef.current.stopReplay(true);
       }
     };
 
@@ -1025,11 +1414,11 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header panel">
-        <p className="eyebrow">Caso Practico 2 · Fase 5</p>
+        <p className="eyebrow">Caso Practico 2 · Fase 7 (Bonus)</p>
         <h1>Representacion visual interactiva de accidentes</h1>
         <p className="subtitle">
-          Pulido UX para demo tecnica fluida: atajos de teclado, acciones
-          seguras y feedback visual inmediato.
+          Replay tipo VAR por keyframes (T1 a T5) con interpolacion de
+          movimiento para reconstruir el accidente en el lienzo.
         </p>
       </header>
 
@@ -1056,6 +1445,7 @@ function App() {
               type="button"
               className="btn primary"
               onClick={() => addElement(selectedType)}
+              disabled={isReplayRunning}
             >
               Anadir seleccionado
             </button>
@@ -1064,7 +1454,7 @@ function App() {
               type="button"
               className="btn ghost"
               onClick={() => clearScene(false)}
-              disabled={elements.length === 0}
+              disabled={elements.length === 0 || isReplayRunning}
             >
               Limpiar escena
             </button>
@@ -1072,8 +1462,89 @@ function App() {
 
           <p className="hint compact keyboard-hints">
             Atajos: Supr/Backspace eliminar seleccionado, Ctrl+S guardar
-            borrador, Ctrl+L cargar borrador y Ctrl+E exportar JSON.
+            borrador, Ctrl+L cargar borrador, Ctrl+E exportar JSON y Ctrl+P
+            iniciar/detener replay.
           </p>
+
+          <section className="timeline-panel">
+            <div className="panel-head">
+              <h3>Replay timeline</h3>
+              <span className="badge">
+                {selectedElementId
+                  ? `Seleccionado: ${selectedKeyframesCount}/${KEYFRAME_SLOTS.length}`
+                  : "Selecciona un objeto"}
+              </span>
+            </div>
+
+            <p className="hint compact">
+              {selectedElement
+                ? `Objeto activo para timeline: ${selectedElement.properties.label} (${selectedElement.id}).`
+                : `Selecciona un elemento del lienzo para gestionar sus ${KEYFRAME_SLOTS.join("/")}.`}
+            </p>
+
+            <div className="actions">
+              {KEYFRAME_SLOTS.map((slot) => (
+                <button
+                  key={slot}
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => captureKeyframe(slot)}
+                  disabled={isReplayRunning || !selectedElement}
+                >
+                  Guardar {slot}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={clearKeyframes}
+                disabled={selectedKeyframesCount === 0 || isReplayRunning || !selectedElement}
+              >
+                Limpiar keyframes
+              </button>
+
+              <button
+                type="button"
+                className={`btn ${isReplayRunning ? "danger" : "primary"}`}
+                onClick={() => {
+                  if (isReplayRunning) {
+                    stopReplay(true);
+                  } else {
+                    playReplay();
+                  }
+                }}
+                disabled={!isReplayRunning && replayReadyElementIds.length === 0}
+              >
+                {isReplayRunning ? "Detener replay" : "Play replay"}
+              </button>
+            </div>
+
+            <p className="hint compact">
+              Objetos listos para replay: {replayReadyElementIds.length}
+            </p>
+
+            <div className="timeline-slots">
+              {KEYFRAME_SLOTS.map((slot) => {
+                const keyframe = selectedKeyframes[slot];
+
+                return (
+                  <article key={slot} className={`timeline-card ${keyframe ? "saved" : "empty"}`}>
+                    <strong>{slot}</strong>
+                    <span>
+                      {keyframe
+                        ? `Guardado ${formatKeyframeTime(keyframe.capturedAt)}`
+                        : "No guardado"}
+                    </span>
+                  </article>
+                );
+              })}
+            </div>
+
+            {activeReplaySegment ? (
+              <p className="hint compact hint-info">Segmento activo: {activeReplaySegment}</p>
+            ) : null}
+          </section>
 
           <div ref={stageContainerRef} className="canvas-host">
             <div className="stage-wrapper">
@@ -1147,9 +1618,21 @@ function App() {
                       rotation={element.rotation}
                       scaleX={element.scaleX}
                       scaleY={element.scaleY}
-                      draggable={!element.locked}
-                      onClick={() => setSelectedElementId(element.id)}
-                      onTap={() => setSelectedElementId(element.id)}
+                      draggable={!element.locked && !isReplayRunning}
+                      onClick={() => {
+                        if (isReplayRunning) {
+                          return;
+                        }
+
+                        setSelectedElementId(element.id);
+                      }}
+                      onTap={() => {
+                        if (isReplayRunning) {
+                          return;
+                        }
+
+                        setSelectedElementId(element.id);
+                      }}
                       onDragEnd={(event) =>
                         updateElementFromNode(element.id, event.target as KonvaGroup)
                       }
@@ -1166,10 +1649,10 @@ function App() {
 
                   <Transformer
                     ref={transformerRef}
-                    rotateEnabled={Boolean(selectedElement && !selectedElement.locked)}
-                    resizeEnabled={Boolean(selectedElement && !selectedElement.locked)}
+                    rotateEnabled={Boolean(selectedElement && !selectedElement.locked && !isReplayRunning)}
+                    resizeEnabled={Boolean(selectedElement && !selectedElement.locked && !isReplayRunning)}
                     enabledAnchors={
-                      selectedElement && !selectedElement.locked
+                      selectedElement && !selectedElement.locked && !isReplayRunning
                         ? ["top-left", "top-right", "bottom-left", "bottom-right"]
                         : []
                     }
@@ -1415,7 +1898,7 @@ function App() {
               type="button"
               className="btn ghost"
               onClick={bringSelectedToFront}
-              disabled={!selectedElement}
+              disabled={!selectedElement || isReplayRunning}
             >
               Enviar al frente
             </button>
@@ -1424,7 +1907,7 @@ function App() {
               type="button"
               className="btn danger"
               onClick={() => removeSelectedElement(false)}
-              disabled={!selectedElement}
+              disabled={!selectedElement || isReplayRunning}
             >
               Eliminar seleccionado
             </button>
@@ -1439,16 +1922,26 @@ function App() {
               type="button"
               className="btn ghost"
               onClick={saveDraftToLocalStorage}
-              disabled={elements.length === 0}
+              disabled={elements.length === 0 || isReplayRunning}
             >
               Guardar borrador
             </button>
 
-            <button type="button" className="btn ghost" onClick={() => loadDraftFromLocalStorage(false)}>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => loadDraftFromLocalStorage(false)}
+              disabled={isReplayRunning}
+            >
               Cargar borrador
             </button>
 
-            <button type="button" className="btn danger" onClick={clearDraftFromLocalStorage}>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={clearDraftFromLocalStorage}
+              disabled={isReplayRunning}
+            >
               Eliminar borrador
             </button>
 
@@ -1456,7 +1949,7 @@ function App() {
               type="button"
               className="btn primary"
               onClick={exportSceneJson}
-              disabled={elements.length === 0}
+              disabled={elements.length === 0 || isReplayRunning}
             >
               Exportar JSON
             </button>

@@ -4,9 +4,13 @@ import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import {
   createSceneElement,
   type SceneElement,
+  type SceneMeta,
   type SceneElementType,
   type SceneSnapshot
 } from "./types/scene";
+
+const GRID_SIZE = 40;
+const SCENE_BACKGROUND = "#111827";
 
 const toolbarOptions: Array<{ type: SceneElementType; label: string }> = [
   { type: "vehicle", label: "Vehiculo" },
@@ -105,10 +109,59 @@ function renderElementShape(element: SceneElement) {
   );
 }
 
+function renderSelectionOutline(element: SceneElement) {
+  if (element.type === "vehicle") {
+    const { width, height } = element.properties;
+
+    return (
+      <Rect
+        x={-width / 2 - 6}
+        y={-height / 2 - 6}
+        width={width + 12}
+        height={height + 12}
+        cornerRadius={12}
+        stroke="#22c55e"
+        strokeWidth={2}
+        dash={[6, 4]}
+      />
+    );
+  }
+
+  if (element.type === "obstacle") {
+    return (
+      <Circle
+        radius={element.properties.radius + 8}
+        stroke="#22c55e"
+        strokeWidth={2}
+        dash={[6, 4]}
+      />
+    );
+  }
+
+  return (
+    <Rect
+      x={-element.properties.length / 2 - 10}
+      y={-12}
+      width={element.properties.length + 20}
+      height={24}
+      cornerRadius={8}
+      stroke="#22c55e"
+      strokeWidth={2}
+      dash={[6, 4]}
+    />
+  );
+}
+
+function parseNumber(value: string, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function App() {
   const stageContainerRef = useRef<HTMLDivElement>(null);
   const [selectedType, setSelectedType] = useState<SceneElementType>("vehicle");
   const [elements, setElements] = useState<SceneElement[]>([]);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ width: 960, height: 580 });
 
   useEffect(() => {
@@ -135,13 +188,35 @@ function App() {
     };
   }, []);
 
+  const sceneMeta = useMemo<SceneMeta>(
+    () => ({
+      canvasWidth: stageSize.width,
+      canvasHeight: stageSize.height,
+      gridSize: GRID_SIZE,
+      background: SCENE_BACKGROUND
+    }),
+    [stageSize]
+  );
+
+  const selectedElement = useMemo(
+    () => elements.find((element) => element.id === selectedElementId) ?? null,
+    [elements, selectedElementId]
+  );
+
+  const elementsSorted = useMemo(
+    () => [...elements].sort((a, b) => a.zIndex - b.zIndex),
+    [elements]
+  );
+
   const sceneSnapshot = useMemo<SceneSnapshot>(
     () => ({
-      version: 1,
+      version: 2,
       generatedAt: new Date().toISOString(),
+      selectedElementId,
+      meta: sceneMeta,
       elements
     }),
-    [elements]
+    [elements, sceneMeta, selectedElementId]
   );
 
   const jsonPreview = useMemo(
@@ -150,13 +225,233 @@ function App() {
   );
 
   function addElement(type: SceneElementType) {
-    setElements((prev) => [...prev, createSceneElement(type, prev.length)]);
+    const nextElement = createSceneElement(type, elements.length);
+
+    setElements((prev) => [...prev, nextElement]);
+    setSelectedElementId(nextElement.id);
+  }
+
+  function patchElement(
+    id: string,
+    updater: (element: SceneElement) => SceneElement
+  ) {
+    setElements((prev) =>
+      prev.map((element) => (element.id === id ? updater(element) : element))
+    );
   }
 
   function updateElementPosition(id: string, x: number, y: number) {
-    setElements((prev) =>
-      prev.map((element) => (element.id === id ? { ...element, x, y } : element))
-    );
+    patchElement(id, (element) => ({
+      ...element,
+      x,
+      y,
+      updatedAt: new Date().toISOString()
+    }));
+  }
+
+  function updateSelectedTransform(
+    patch: Partial<Pick<SceneElement, "x" | "y" | "rotation" | "scaleX" | "scaleY">>
+  ) {
+    if (!selectedElement) {
+      return;
+    }
+
+    patchElement(selectedElement.id, (element) => ({
+      ...element,
+      ...patch,
+      updatedAt: new Date().toISOString()
+    }));
+  }
+
+  function updateSelectedLabel(nextLabel: string) {
+    if (!selectedElement) {
+      return;
+    }
+
+    patchElement(selectedElement.id, (element) => {
+      const updatedAt = new Date().toISOString();
+
+      if (element.type === "vehicle") {
+        return {
+          ...element,
+          properties: {
+            ...element.properties,
+            label: nextLabel
+          },
+          updatedAt
+        };
+      }
+
+      if (element.type === "obstacle") {
+        return {
+          ...element,
+          properties: {
+            ...element.properties,
+            label: nextLabel
+          },
+          updatedAt
+        };
+      }
+
+      return {
+        ...element,
+        properties: {
+          ...element.properties,
+          label: nextLabel
+        },
+        updatedAt
+      };
+    });
+  }
+
+  function updateSelectedColor(nextColor: string) {
+    if (!selectedElement) {
+      return;
+    }
+
+    patchElement(selectedElement.id, (element) => {
+      const updatedAt = new Date().toISOString();
+
+      if (element.type === "vehicle") {
+        return {
+          ...element,
+          properties: {
+            ...element.properties,
+            color: nextColor
+          },
+          updatedAt
+        };
+      }
+
+      if (element.type === "obstacle") {
+        return {
+          ...element,
+          properties: {
+            ...element.properties,
+            color: nextColor
+          },
+          updatedAt
+        };
+      }
+
+      return {
+        ...element,
+        properties: {
+          ...element.properties,
+          color: nextColor
+        },
+        updatedAt
+      };
+    });
+  }
+
+  function updateSelectedVehicleDimension(
+    dimension: "width" | "height",
+    nextValue: number
+  ) {
+    if (!selectedElement || selectedElement.type !== "vehicle") {
+      return;
+    }
+
+    const safeValue = Math.max(12, nextValue);
+
+    patchElement(selectedElement.id, (element) => {
+      if (element.type !== "vehicle") {
+        return element;
+      }
+
+      return {
+        ...element,
+        properties: {
+          ...element.properties,
+          [dimension]: safeValue
+        },
+        updatedAt: new Date().toISOString()
+      };
+    });
+  }
+
+  function updateSelectedObstacleRadius(nextValue: number) {
+    if (!selectedElement || selectedElement.type !== "obstacle") {
+      return;
+    }
+
+    const safeValue = Math.max(8, nextValue);
+
+    patchElement(selectedElement.id, (element) => {
+      if (element.type !== "obstacle") {
+        return element;
+      }
+
+      return {
+        ...element,
+        properties: {
+          ...element.properties,
+          radius: safeValue
+        },
+        updatedAt: new Date().toISOString()
+      };
+    });
+  }
+
+  function updateSelectedReferenceLength(nextValue: number) {
+    if (!selectedElement || selectedElement.type !== "reference") {
+      return;
+    }
+
+    const safeValue = Math.max(20, nextValue);
+
+    patchElement(selectedElement.id, (element) => {
+      if (element.type !== "reference") {
+        return element;
+      }
+
+      return {
+        ...element,
+        properties: {
+          ...element.properties,
+          length: safeValue
+        },
+        updatedAt: new Date().toISOString()
+      };
+    });
+  }
+
+  function bringSelectedToFront() {
+    if (!selectedElement) {
+      return;
+    }
+
+    const nextZIndex =
+      elements.reduce((maxZIndex, element) => Math.max(maxZIndex, element.zIndex), -1) +
+      1;
+
+    patchElement(selectedElement.id, (element) => ({
+      ...element,
+      zIndex: nextZIndex,
+      updatedAt: new Date().toISOString()
+    }));
+  }
+
+  function toggleSelectedLocked() {
+    if (!selectedElement) {
+      return;
+    }
+
+    patchElement(selectedElement.id, (element) => ({
+      ...element,
+      locked: !element.locked,
+      updatedAt: new Date().toISOString()
+    }));
+  }
+
+  function removeSelectedElement() {
+    if (!selectedElement) {
+      return;
+    }
+
+    setElements((prev) => prev.filter((element) => element.id !== selectedElement.id));
+    setSelectedElementId(null);
   }
 
   function exportSceneJson() {
@@ -176,11 +471,11 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header panel">
-        <p className="eyebrow">Caso Practico 2 · Fase 1</p>
+        <p className="eyebrow">Caso Practico 2 · Fase 2</p>
         <h1>Representacion visual interactiva de accidentes</h1>
         <p className="subtitle">
-          Base funcional con React + Konva: alta de elementos, drag and drop y
-          conversion de la escena a JSON estructurado.
+          Modelo de escena extendido con seleccion, capas, metadatos y edicion
+          de propiedades en tiempo real.
         </p>
       </header>
 
@@ -214,7 +509,10 @@ function App() {
             <button
               type="button"
               className="btn ghost"
-              onClick={() => setElements([])}
+              onClick={() => {
+                setElements([]);
+                setSelectedElementId(null);
+              }}
             >
               Limpiar escena
             </button>
@@ -222,45 +520,76 @@ function App() {
 
           <div ref={stageContainerRef} className="canvas-host">
             <div className="stage-wrapper">
-              <Stage width={stageSize.width} height={stageSize.height}>
+              <Stage
+                width={stageSize.width}
+                height={stageSize.height}
+                onMouseDown={(event) => {
+                  const clickedOnEmpty = event.target === event.target.getStage();
+
+                  if (clickedOnEmpty) {
+                    setSelectedElementId(null);
+                  }
+                }}
+                onTouchStart={(event) => {
+                  const clickedOnEmpty = event.target === event.target.getStage();
+
+                  if (clickedOnEmpty) {
+                    setSelectedElementId(null);
+                  }
+                }}
+              >
                 <Layer>
                   <Rect
                     x={0}
                     y={0}
                     width={stageSize.width}
                     height={stageSize.height}
-                    fill="#111827"
+                    fill={SCENE_BACKGROUND}
                   />
 
-                  {Array.from({ length: Math.floor(stageSize.width / 40) }).map(
+                  {Array.from({ length: Math.floor(stageSize.width / GRID_SIZE) }).map(
                     (_, index) => (
                       <Line
                         key={`grid-v-${index}`}
-                        points={[index * 40, 0, index * 40, stageSize.height]}
+                        points={[
+                          index * GRID_SIZE,
+                          0,
+                          index * GRID_SIZE,
+                          stageSize.height
+                        ]}
                         stroke="rgba(148, 163, 184, 0.12)"
                         strokeWidth={1}
                       />
                     )
                   )}
 
-                  {Array.from({ length: Math.floor(stageSize.height / 40) }).map(
+                  {Array.from({ length: Math.floor(stageSize.height / GRID_SIZE) }).map(
                     (_, index) => (
                       <Line
                         key={`grid-h-${index}`}
-                        points={[0, index * 40, stageSize.width, index * 40]}
+                        points={[
+                          0,
+                          index * GRID_SIZE,
+                          stageSize.width,
+                          index * GRID_SIZE
+                        ]}
                         stroke="rgba(148, 163, 184, 0.12)"
                         strokeWidth={1}
                       />
                     )
                   )}
 
-                  {elements.map((element) => (
+                  {elementsSorted.map((element) => (
                     <Group
                       key={element.id}
                       x={element.x}
                       y={element.y}
                       rotation={element.rotation}
-                      draggable
+                      scaleX={element.scaleX}
+                      scaleY={element.scaleY}
+                      draggable={!element.locked}
+                      onClick={() => setSelectedElementId(element.id)}
+                      onTap={() => setSelectedElementId(element.id)}
                       onDragEnd={(event) =>
                         updateElementPosition(
                           element.id,
@@ -269,6 +598,7 @@ function App() {
                         )
                       }
                     >
+                      {selectedElementId === element.id ? renderSelectionOutline(element) : null}
                       {renderElementShape(element)}
                     </Group>
                   ))}
@@ -284,6 +614,194 @@ function App() {
         </article>
 
         <aside className="panel json-panel">
+          <div className="panel-head">
+            <h2>Inspector de escena</h2>
+            <span className="badge">v2</span>
+          </div>
+
+          {selectedElement ? (
+            <section className="inspector-grid">
+              <label className="field">
+                <span>ID</span>
+                <input value={selectedElement.id} readOnly />
+              </label>
+
+              <label className="field">
+                <span>Tipo</span>
+                <input value={selectedElement.type} readOnly />
+              </label>
+
+              <label className="field">
+                <span>Label</span>
+                <input
+                  value={selectedElement.properties.label}
+                  onChange={(event) => updateSelectedLabel(event.target.value)}
+                />
+              </label>
+
+              <label className="field">
+                <span>Color</span>
+                <input
+                  type="color"
+                  value={selectedElement.properties.color}
+                  onChange={(event) => updateSelectedColor(event.target.value)}
+                />
+              </label>
+
+              <label className="field">
+                <span>X</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedElement.x)}
+                  onChange={(event) =>
+                    updateSelectedTransform({
+                      x: parseNumber(event.target.value, selectedElement.x)
+                    })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Y</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedElement.y)}
+                  onChange={(event) =>
+                    updateSelectedTransform({
+                      y: parseNumber(event.target.value, selectedElement.y)
+                    })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Rotacion</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedElement.rotation)}
+                  onChange={(event) =>
+                    updateSelectedTransform({
+                      rotation: parseNumber(event.target.value, selectedElement.rotation)
+                    })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Scale X</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={selectedElement.scaleX}
+                  onChange={(event) =>
+                    updateSelectedTransform({
+                      scaleX: Math.max(0.2, parseNumber(event.target.value, selectedElement.scaleX))
+                    })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Scale Y</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={selectedElement.scaleY}
+                  onChange={(event) =>
+                    updateSelectedTransform({
+                      scaleY: Math.max(0.2, parseNumber(event.target.value, selectedElement.scaleY))
+                    })
+                  }
+                />
+              </label>
+
+              {selectedElement.type === "vehicle" ? (
+                <>
+                  <label className="field">
+                    <span>Ancho</span>
+                    <input
+                      type="number"
+                      value={selectedElement.properties.width}
+                      onChange={(event) =>
+                        updateSelectedVehicleDimension(
+                          "width",
+                          parseNumber(event.target.value, selectedElement.properties.width)
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>Alto</span>
+                    <input
+                      type="number"
+                      value={selectedElement.properties.height}
+                      onChange={(event) =>
+                        updateSelectedVehicleDimension(
+                          "height",
+                          parseNumber(event.target.value, selectedElement.properties.height)
+                        )
+                      }
+                    />
+                  </label>
+                </>
+              ) : null}
+
+              {selectedElement.type === "obstacle" ? (
+                <label className="field">
+                  <span>Radio</span>
+                  <input
+                    type="number"
+                    value={selectedElement.properties.radius}
+                    onChange={(event) =>
+                      updateSelectedObstacleRadius(
+                        parseNumber(event.target.value, selectedElement.properties.radius)
+                      )
+                    }
+                  />
+                </label>
+              ) : null}
+
+              {selectedElement.type === "reference" ? (
+                <label className="field">
+                  <span>Longitud</span>
+                  <input
+                    type="number"
+                    value={selectedElement.properties.length}
+                    onChange={(event) =>
+                      updateSelectedReferenceLength(
+                        parseNumber(event.target.value, selectedElement.properties.length)
+                      )
+                    }
+                  />
+                </label>
+              ) : null}
+
+              <label className="field field-toggle">
+                <span>Bloqueado</span>
+                <input
+                  type="checkbox"
+                  checked={selectedElement.locked}
+                  onChange={toggleSelectedLocked}
+                />
+              </label>
+            </section>
+          ) : (
+            <p className="hint compact">
+              Selecciona un elemento del lienzo para editar sus propiedades.
+            </p>
+          )}
+
+          <div className="actions">
+            <button type="button" className="btn ghost" onClick={bringSelectedToFront}>
+              Enviar al frente
+            </button>
+
+            <button type="button" className="btn danger" onClick={removeSelectedElement}>
+              Eliminar seleccionado
+            </button>
+          </div>
+
           <div className="panel-head">
             <h2>Modelo JSON en vivo</h2>
           </div>

@@ -1,6 +1,6 @@
 # Caso Practico 2 · Representacion visual interactiva de accidentes
 
-Fase 1 implementada con React + Konva.
+Fase 2 implementada con React + Konva.
 
 ## Alcance de esta fase
 
@@ -12,6 +12,17 @@ Fase 1 implementada con React + Konva.
   - Obstaculo
   - Referencia
 - Drag and drop de todos los elementos sobre el lienzo.
+- Seleccion de elementos desde el canvas.
+- Inspector para editar propiedades principales:
+  - posicion (x, y)
+  - rotacion
+  - escala (scaleX, scaleY)
+  - color y etiqueta
+  - tamano por tipo (ancho/alto, radio, longitud)
+- Controles de modelo:
+  - bloquear/desbloquear elemento
+  - enviar al frente por zIndex
+  - eliminar elemento seleccionado
 - Exportacion de la escena en formato `.json`.
 
 ## Modelo de datos utilizado
@@ -22,7 +33,18 @@ Cada elemento de la escena mantiene:
 - `type`: tipo de elemento (`vehicle`, `obstacle`, `reference`).
 - `x`, `y`: posicion en el lienzo.
 - `rotation`: rotacion actual.
+- `scaleX`, `scaleY`: escala del elemento.
+- `zIndex`: orden de renderizado.
+- `locked`: bloquea o habilita el arrastre.
+- `createdAt`, `updatedAt`: trazabilidad temporal.
 - `properties`: propiedades principales por tipo (por ejemplo color, label, tamano/radio/longitud).
+
+Ademas, la escena exporta metadatos:
+
+- `meta.canvasWidth`, `meta.canvasHeight`
+- `meta.gridSize`
+- `meta.background`
+- `selectedElementId`
 
 Ejemplo:
 
@@ -33,6 +55,12 @@ Ejemplo:
   "x": 310,
   "y": 180,
   "rotation": 0,
+  "scaleX": 1,
+  "scaleY": 1,
+  "zIndex": 0,
+  "locked": false,
+  "createdAt": "2026-05-19T10:00:00.000Z",
+  "updatedAt": "2026-05-19T10:00:00.000Z",
   "properties": {
     "label": "Vehiculo 1",
     "color": "#38bdf8",

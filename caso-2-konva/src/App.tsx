@@ -16,6 +16,7 @@ import {
 const GRID_SIZE = 40;
 const SCENE_BACKGROUND = "#111827";
 const DRAFT_STORAGE_KEY = "case2-scene-draft-v4";
+const FEEDBACK_TIMEOUT_MS = 2600;
 
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -50,6 +51,11 @@ type SceneExportPayload = {
     locked: boolean;
     properties: SceneElement["properties"];
   }>;
+};
+
+type UiFeedback = {
+  kind: "success" | "error" | "info" | "warning";
+  text: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -412,16 +418,36 @@ function parseNumber(value: string, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select";
+}
+
 function App() {
   const stageContainerRef = useRef<HTMLDivElement>(null);
   const transformerRef = useRef<KonvaTransformer | null>(null);
   const elementNodeRefs = useRef<Record<string, KonvaGroup | null>>({});
+  const shortcutActionsRef = useRef<{
+    removeSelectedElement: (skipConfirmation?: boolean) => void;
+    saveDraftToLocalStorage: () => void;
+    loadDraftFromLocalStorage: (silentWhenMissing?: boolean) => void;
+    exportSceneJson: () => void;
+  }>({
+    removeSelectedElement: () => undefined,
+    saveDraftToLocalStorage: () => undefined,
+    loadDraftFromLocalStorage: () => undefined,
+    exportSceneJson: () => undefined
+  });
 
   const [selectedType, setSelectedType] = useState<SceneElementType>("vehicle");
   const [elements, setElements] = useState<SceneElement[]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ width: 960, height: 580 });
-  const [draftFeedback, setDraftFeedback] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [uiFeedback, setUiFeedback] = useState<UiFeedback | null>(null);
 
   useEffect(() => {
     const container = stageContainerRef.current;
@@ -450,6 +476,20 @@ function App() {
   useEffect(() => {
     loadDraftFromLocalStorage(true);
   }, []);
+
+  useEffect(() => {
+    if (!uiFeedback) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setUiFeedback(null);
+    }, FEEDBACK_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [uiFeedback]);
 
   const sceneMeta = useMemo<SceneMeta>(
     () => ({
@@ -743,6 +783,7 @@ function App() {
 
   function bringSelectedToFront() {
     if (!selectedElement) {
+      setUiFeedback({ kind: "warning", text: "Selecciona un elemento para enviarlo al frente." });
       return;
     }
 
@@ -755,34 +796,77 @@ function App() {
       zIndex: nextZIndex,
       updatedAt: new Date().toISOString()
     }));
+
+    setUiFeedback({ kind: "info", text: `Elemento ${selectedElement.id} enviado al frente.` });
   }
 
   function toggleSelectedLocked() {
     if (!selectedElement) {
+      setUiFeedback({ kind: "warning", text: "Selecciona un elemento para bloquearlo o desbloquearlo." });
       return;
     }
 
+    const nextLocked = !selectedElement.locked;
+
     patchElement(selectedElement.id, (element) => ({
       ...element,
-      locked: !element.locked,
+      locked: nextLocked,
       updatedAt: new Date().toISOString()
     }));
+
+    setUiFeedback({
+      kind: "info",
+      text: nextLocked ? "Elemento bloqueado." : "Elemento desbloqueado."
+    });
   }
 
-  function removeSelectedElement() {
+  function removeSelectedElement(skipConfirmation = false) {
     if (!selectedElement) {
+      setUiFeedback({ kind: "warning", text: "No hay un elemento seleccionado para eliminar." });
       return;
+    }
+
+    if (!skipConfirmation) {
+      const confirmed = window.confirm(
+        "Se eliminara el elemento seleccionado. Esta accion no se puede deshacer."
+      );
+
+      if (!confirmed) {
+        return;
+      }
     }
 
     setElements((prev) => prev.filter((element) => element.id !== selectedElement.id));
     setSelectedElementId(null);
+    setUiFeedback({ kind: "info", text: "Elemento eliminado de la escena." });
+  }
+
+  function clearScene(skipConfirmation = false) {
+    if (elements.length === 0) {
+      setUiFeedback({ kind: "warning", text: "La escena ya esta vacia." });
+      return;
+    }
+
+    if (!skipConfirmation) {
+      const confirmed = window.confirm(
+        "Se eliminaran todos los elementos de la escena. Esta accion no se puede deshacer."
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setElements([]);
+    setSelectedElementId(null);
+    setUiFeedback({ kind: "info", text: "Escena reiniciada correctamente." });
   }
 
   function saveDraftToLocalStorage() {
     const issues = validateSceneSnapshot(sceneSnapshot);
 
     if (issues.length > 0) {
-      setDraftFeedback({
+      setUiFeedback({
         kind: "error",
         text: `No se pudo guardar borrador: ${issues[0]}`
       });
@@ -791,9 +875,9 @@ function App() {
 
     try {
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(sceneSnapshot));
-      setDraftFeedback({ kind: "ok", text: "Borrador guardado en localStorage." });
+      setUiFeedback({ kind: "success", text: "Borrador guardado en localStorage." });
     } catch {
-      setDraftFeedback({
+      setUiFeedback({
         kind: "error",
         text: "No se pudo guardar el borrador en localStorage."
       });
@@ -806,7 +890,7 @@ function App() {
 
       if (!rawDraft) {
         if (!silentWhenMissing) {
-          setDraftFeedback({ kind: "error", text: "No hay borrador guardado." });
+          setUiFeedback({ kind: "warning", text: "No hay borrador guardado." });
         }
         return;
       }
@@ -815,7 +899,7 @@ function App() {
       const hydratedSnapshot = hydrateSceneSnapshot(parsedDraft);
 
       if (!hydratedSnapshot) {
-        setDraftFeedback({
+        setUiFeedback({
           kind: "error",
           text: "El borrador guardado es invalido y no se puede cargar."
         });
@@ -825,7 +909,7 @@ function App() {
       const issues = validateSceneSnapshot(hydratedSnapshot);
 
       if (issues.length > 0) {
-        setDraftFeedback({
+        setUiFeedback({
           kind: "error",
           text: `El borrador no paso validacion: ${issues[0]}`
         });
@@ -834,9 +918,9 @@ function App() {
 
       setElements(hydratedSnapshot.elements);
       setSelectedElementId(hydratedSnapshot.selectedElementId);
-      setDraftFeedback({ kind: "ok", text: "Borrador cargado correctamente." });
+      setUiFeedback({ kind: "success", text: "Borrador cargado correctamente." });
     } catch {
-      setDraftFeedback({
+      setUiFeedback({
         kind: "error",
         text: "No se pudo cargar el borrador desde localStorage."
       });
@@ -846,9 +930,9 @@ function App() {
   function clearDraftFromLocalStorage() {
     try {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
-      setDraftFeedback({ kind: "ok", text: "Borrador local eliminado." });
+      setUiFeedback({ kind: "success", text: "Borrador local eliminado." });
     } catch {
-      setDraftFeedback({
+      setUiFeedback({
         kind: "error",
         text: "No se pudo eliminar el borrador local."
       });
@@ -859,7 +943,7 @@ function App() {
     const issues = validateSceneSnapshot(sceneSnapshot);
 
     if (issues.length > 0) {
-      setDraftFeedback({
+      setUiFeedback({
         kind: "error",
         text: `No se pudo exportar JSON: ${issues[0]}`
       });
@@ -882,23 +966,70 @@ function App() {
       anchor.remove();
       URL.revokeObjectURL(url);
 
-      setDraftFeedback({ kind: "ok", text: "Escena exportada a JSON correctamente." });
+      setUiFeedback({ kind: "success", text: "Escena exportada a JSON correctamente." });
     } catch {
-      setDraftFeedback({
+      setUiFeedback({
         kind: "error",
         text: "Ocurrio un error al generar el archivo JSON."
       });
     }
   }
 
+  shortcutActionsRef.current = {
+    removeSelectedElement,
+    saveDraftToLocalStorage,
+    loadDraftFromLocalStorage,
+    exportSceneJson
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      const ctrlOrMeta = event.ctrlKey || event.metaKey;
+
+      if (key === "delete" || key === "backspace") {
+        event.preventDefault();
+        shortcutActionsRef.current.removeSelectedElement(true);
+        return;
+      }
+
+      if (ctrlOrMeta && key === "s") {
+        event.preventDefault();
+        shortcutActionsRef.current.saveDraftToLocalStorage();
+        return;
+      }
+
+      if (ctrlOrMeta && key === "e") {
+        event.preventDefault();
+        shortcutActionsRef.current.exportSceneJson();
+        return;
+      }
+
+      if (ctrlOrMeta && key === "l") {
+        event.preventDefault();
+        shortcutActionsRef.current.loadDraftFromLocalStorage(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   return (
     <main className="app-shell">
       <header className="app-header panel">
-        <p className="eyebrow">Caso Practico 2 · Fase 4</p>
+        <p className="eyebrow">Caso Practico 2 · Fase 5</p>
         <h1>Representacion visual interactiva de accidentes</h1>
         <p className="subtitle">
-          Exportacion validada a JSON y persistencia local de borradores sin
-          perder la escena al recargar.
+          Pulido UX para demo tecnica fluida: atajos de teclado, acciones
+          seguras y feedback visual inmediato.
         </p>
       </header>
 
@@ -932,14 +1063,17 @@ function App() {
             <button
               type="button"
               className="btn ghost"
-              onClick={() => {
-                setElements([]);
-                setSelectedElementId(null);
-              }}
+              onClick={() => clearScene(false)}
+              disabled={elements.length === 0}
             >
               Limpiar escena
             </button>
           </div>
+
+          <p className="hint compact keyboard-hints">
+            Atajos: Supr/Backspace eliminar seleccionado, Ctrl+S guardar
+            borrador, Ctrl+L cargar borrador y Ctrl+E exportar JSON.
+          </p>
 
           <div ref={stageContainerRef} className="canvas-host">
             <div className="stage-wrapper">
@@ -1277,11 +1411,21 @@ function App() {
           )}
 
           <div className="actions">
-            <button type="button" className="btn ghost" onClick={bringSelectedToFront}>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={bringSelectedToFront}
+              disabled={!selectedElement}
+            >
               Enviar al frente
             </button>
 
-            <button type="button" className="btn danger" onClick={removeSelectedElement}>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => removeSelectedElement(false)}
+              disabled={!selectedElement}
+            >
               Eliminar seleccionado
             </button>
           </div>
@@ -1291,7 +1435,12 @@ function App() {
           </div>
 
           <div className="actions">
-            <button type="button" className="btn ghost" onClick={saveDraftToLocalStorage}>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={saveDraftToLocalStorage}
+              disabled={elements.length === 0}
+            >
               Guardar borrador
             </button>
 
@@ -1303,14 +1452,19 @@ function App() {
               Eliminar borrador
             </button>
 
-            <button type="button" className="btn primary" onClick={exportSceneJson}>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={exportSceneJson}
+              disabled={elements.length === 0}
+            >
               Exportar JSON
             </button>
           </div>
 
-          {draftFeedback ? (
-            <p className={`hint compact ${draftFeedback.kind === "error" ? "hint-error" : "hint-success"}`}>
-              {draftFeedback.text}
+          {uiFeedback ? (
+            <p className={`hint compact hint-${uiFeedback.kind}`}>
+              {uiFeedback.text}
             </p>
           ) : null}
 

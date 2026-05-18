@@ -1,6 +1,6 @@
 # Caso Practico 2 · Representacion visual interactiva de accidentes
 
-Fase 4 implementada con React + Konva.
+Fase 5 implementada con React + Konva.
 
 ## Alcance de esta fase
 
@@ -34,6 +34,18 @@ Fase 4 implementada con React + Konva.
   - cargar borrador
   - eliminar borrador
 - Exportacion de la escena en formato `.json` con validacion previa.
+- Pulido UX para demo tecnica:
+  - atajos de teclado para acciones frecuentes
+  - confirmacion en acciones destructivas
+  - botones deshabilitados cuando no aplican
+  - feedback visual contextual (success/info/warning/error)
+
+## Atajos de teclado
+
+- `Supr` o `Backspace`: eliminar elemento seleccionado.
+- `Ctrl + S`: guardar borrador en localStorage.
+- `Ctrl + L`: cargar borrador desde localStorage.
+- `Ctrl + E`: exportar JSON.
 
 ## Modelo de datos utilizado
 

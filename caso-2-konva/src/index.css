@@ -127,6 +127,17 @@ body {
   background: rgba(148, 163, 184, 0.16);
 }
 
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn:disabled:hover {
+  transform: none;
+  background: inherit;
+}
+
 .btn.primary {
   background: #22c55e;
   border-color: #22c55e;
@@ -177,12 +188,24 @@ body {
   margin: 2px 0;
 }
 
+.keyboard-hints {
+  color: #93c5fd;
+}
+
 .hint-success {
   color: #86efac;
 }
 
 .hint-error {
   color: #fca5a5;
+}
+
+.hint-info {
+  color: #67e8f9;
+}
+
+.hint-warning {
+  color: #fcd34d;
 }
 
 .json-panel {

@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: apparte_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-apparte_db}
+      POSTGRES_USER: ${POSTGRES_USER:-apparte_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apparte_pass}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-apparte_user} -d ${POSTGRES_DB:-apparte_db}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./caso-1-multitenant/backend
+      dockerfile: Dockerfile
+    container_name: apparte_backend
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-apparte_user}:${POSTGRES_PASSWORD:-apparte_pass}@postgres:5432/${POSTGRES_DB:-apparte_db}
+      JWT_SECRET: ${JWT_SECRET:-change_this_in_production}
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./caso-1-multitenant/frontend
+      dockerfile: Dockerfile
+    container_name: apparte_frontend
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

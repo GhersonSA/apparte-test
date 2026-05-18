@@ -153,6 +153,16 @@ body {
   background: #4ade80;
 }
 
+.btn.accent {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(56, 189, 248, 0.72);
+  color: #dbeafe;
+}
+
+.btn.accent:hover {
+  background: rgba(56, 189, 248, 0.34);
+}
+
 .btn.active {
   background: rgba(56, 189, 248, 0.28);
   border-color: rgba(56, 189, 248, 0.9);

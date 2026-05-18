@@ -1,6 +1,6 @@
 # Caso Practico 2 · Representacion visual interactiva de accidentes
 
-Fase 7 (bonus) implementada con React + Konva.
+Fase 8 (bonus) implementada con React + Konva.
 
 ## Alcance de esta fase
 
@@ -44,6 +44,7 @@ Fase 7 (bonus) implementada con React + Konva.
   - reproduccion interpolada entre keyframes
   - visualizacion del segmento activo (T1 -> T2 -> T3 -> T4 -> T5)
   - composicion de la animacion con multiples objetos simultaneamente
+  - exportacion del replay como video `.webm`
 
 ## Atajos de teclado
 
@@ -52,6 +53,7 @@ Fase 7 (bonus) implementada con React + Konva.
 - `Ctrl + L`: cargar borrador desde localStorage.
 - `Ctrl + E`: exportar JSON.
 - `Ctrl + P`: iniciar/detener replay.
+- `Ctrl + Shift + V`: exportar replay en video.
 - `Esc`: detener replay activo.
 
 ## Modelo de datos utilizado

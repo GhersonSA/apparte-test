@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum InterventionType {
+  ACCIDENT_TIME
+  FIRE_ASSISTANCE
+  MEDICAL_ASSISTANCE
+  VEHICLE_REMOVAL
+}
+
+model Tenant {
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  users           User[]
+  accidentReports AccidentReport[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at")
+
+  @@map("tenants")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String
+  passwordHash    String           @map("password_hash")
+  role            UserRole         @default(USER)
+  tenantId        String           @map("tenant_id")
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accidentReports AccidentReport[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+model AccidentReport {
+  id               String           @id @default(cuid())
+  firstName        String           @map("first_name")
+  lastName         String           @map("last_name")
+  location         String
+  interventionType InterventionType @map("intervention_type")
+  userId           String           @map("user_id")
+  tenantId         String           @map("tenant_id")
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("accident_reports")
+}

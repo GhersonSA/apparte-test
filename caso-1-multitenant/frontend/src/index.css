@@ -1,9 +1,156 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --scroll-track: #08101a;
+    --scroll-thumb: #45f882;
+    --scroll-thumb-hover: #6afaa4;
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+    --scroll-track: #dfe7f0;
+    --scroll-thumb: #45f882;
+    --scroll-thumb-hover: #31d66f;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+  }
+
+  :root::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  :root::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-track {
+    background: var(--scroll-track);
+  }
+
+  :root::-webkit-scrollbar-thumb,
+  *::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    border-radius: 999px;
+    border: 2px solid var(--scroll-track);
+  }
+
+  :root::-webkit-scrollbar-thumb:hover,
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--scroll-thumb-hover);
+  }
+
+  :root::-webkit-scrollbar-corner,
+  *::-webkit-scrollbar-corner {
+    background: var(--scroll-track);
+  }
+
   body {
-    @apply m-0 min-h-screen bg-slate-50 text-slate-900;
+    @apply m-0 min-h-screen bg-brand-primary font-sans text-white antialiased;
+    background-image: radial-gradient(circle at 12% 18%, rgba(69, 248, 130, 0.18), transparent 36%),
+      radial-gradient(circle at 80% 0%, rgba(74, 124, 255, 0.13), transparent 30%),
+      linear-gradient(150deg, #08101a 0%, #0b1522 45%, #08101a 100%);
+  }
+
+  html[data-theme="light"] body {
+    @apply bg-brand-lightBg text-slate-900;
+    background-image: radial-gradient(circle at 12% 18%, rgba(69, 248, 130, 0.2), transparent 35%),
+      radial-gradient(circle at 80% 0%, rgba(59, 130, 246, 0.14), transparent 32%),
+      linear-gradient(150deg, #f7fafc 0%, #edf2f8 46%, #f5f8fc 100%);
+  }
+
+  html[data-theme="light"] .bg-brand-primary {
+    background-color: #f4f6fa !important;
+  }
+
+  html[data-theme="light"] .text-white {
+    color: #0f172a !important;
+  }
+
+  html[data-theme="light"] .text-brand-muted {
+    color: #5f738c !important;
+  }
+
+  html[data-theme="light"] .border-white\/5 {
+    border-color: rgba(15, 23, 42, 0.08) !important;
+  }
+
+  html[data-theme="light"] .border-white\/10 {
+    border-color: rgba(15, 23, 42, 0.14) !important;
+  }
+
+  html[data-theme="light"] .bg-white\/5 {
+    background-color: rgba(15, 23, 42, 0.04) !important;
+  }
+
+  html[data-theme="light"] .bg-white\/10 {
+    background-color: rgba(15, 23, 42, 0.08) !important;
+  }
+
+  html[data-theme="light"] .bg-black\/20,
+  html[data-theme="light"] .bg-black\/30 {
+    background-color: rgba(255, 255, 255, 0.75) !important;
+  }
+
+  html[data-theme="light"] .hover\:bg-white\/10:hover,
+  html[data-theme="light"] .hover\:bg-black\/30:hover {
+    background-color: rgba(15, 23, 42, 0.1) !important;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-3xl border border-white/5 bg-brand-surface/85 shadow-elevated backdrop-blur-md;
+  }
+
+  .brand-input {
+    @apply w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white placeholder:text-brand-muted outline-none transition-all duration-3xl focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/40;
+  }
+
+  .brand-select {
+    @apply w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-all duration-3xl focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/40;
+  }
+
+  .brand-button {
+    @apply inline-flex items-center justify-center rounded-2xl bg-brand-accent px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-soft transition-all duration-3xl hover:-translate-y-0.5 hover:brightness-105;
+  }
+
+  .brand-button-secondary {
+    @apply inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-3xl hover:-translate-y-0.5 hover:bg-white/10;
+  }
+
+  html[data-theme="light"] .glass-card {
+    background: rgba(255, 255, 255, 0.84);
+    border-color: rgba(15, 23, 42, 0.1);
+    box-shadow: 0 24px 55px -35px rgba(8, 16, 26, 0.45);
+  }
+
+  html[data-theme="light"] .brand-input,
+  html[data-theme="light"] .brand-select {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(15, 23, 42, 0.18);
+    color: #0f172a;
+  }
+
+  html[data-theme="light"] .brand-input::placeholder {
+    color: #64748b;
+  }
+
+  html[data-theme="light"] .brand-button-secondary {
+    background: rgba(15, 23, 42, 0.03);
+    border-color: rgba(15, 23, 42, 0.14);
+    color: #0f172a;
+  }
+
+  html[data-theme="light"] .bg-brand-surface {
+    background-color: #ffffff;
   }
 }

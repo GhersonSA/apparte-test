@@ -29,7 +29,20 @@ function requiredEnv(name: string): string {
     throw new Error(`Missing required environment variable: ${name}`);
   }
 
-  return value;
+  return value.trim();
+}
+
+function requiredInterventionType(name: string): InterventionType {
+  const value = requiredEnv(name);
+
+  if (!Object.values(InterventionType).includes(value as InterventionType)) {
+    const validValues = Object.values(InterventionType).join(", ");
+    throw new Error(
+      `Invalid environment variable ${name}: ${value}. Valid values: ${validValues}`
+    );
+  }
+
+  return value as InterventionType;
 }
 
 async function upsertTenantReport(params: {
@@ -77,43 +90,47 @@ async function main() {
 
   const seedConfig: SeedTenantConfig[] = [
     {
-      name: process.env.SEED_TENANT_ALPHA_NAME ?? "Tenant Alpha",
-      slug: process.env.SEED_TENANT_ALPHA_SLUG ?? "tenant-alpha",
+      name: requiredEnv("SEED_TENANT_ALPHA_NAME"),
+      slug: requiredEnv("SEED_TENANT_ALPHA_SLUG"),
       users: [
         {
-          email: process.env.SEED_TENANT_ALPHA_ADMIN_EMAIL ?? "admin@tenant-alpha.com",
+          email: requiredEnv("SEED_TENANT_ALPHA_ADMIN_EMAIL"),
           role: UserRole.ADMIN
         },
         {
-          email: process.env.SEED_TENANT_ALPHA_USER_EMAIL ?? "user@tenant-alpha.com",
+          email: requiredEnv("SEED_TENANT_ALPHA_USER_EMAIL"),
           role: UserRole.USER
         }
       ],
       report: {
-        firstName: process.env.SEED_TENANT_ALPHA_REPORT_FIRST_NAME ?? "John",
-        lastName: process.env.SEED_TENANT_ALPHA_REPORT_LAST_NAME ?? "Doe",
-        location: process.env.SEED_TENANT_ALPHA_REPORT_LOCATION ?? "Madrid",
-        interventionType: InterventionType.ACCIDENT_TIME
+        firstName: requiredEnv("SEED_TENANT_ALPHA_REPORT_FIRST_NAME"),
+        lastName: requiredEnv("SEED_TENANT_ALPHA_REPORT_LAST_NAME"),
+        location: requiredEnv("SEED_TENANT_ALPHA_REPORT_LOCATION"),
+        interventionType: requiredInterventionType(
+          "SEED_TENANT_ALPHA_REPORT_INTERVENTION_TYPE"
+        )
       }
     },
     {
-      name: process.env.SEED_TENANT_BETA_NAME ?? "Tenant Beta",
-      slug: process.env.SEED_TENANT_BETA_SLUG ?? "tenant-beta",
+      name: requiredEnv("SEED_TENANT_BETA_NAME"),
+      slug: requiredEnv("SEED_TENANT_BETA_SLUG"),
       users: [
         {
-          email: process.env.SEED_TENANT_BETA_ADMIN_EMAIL ?? "admin@tenant-beta.com",
+          email: requiredEnv("SEED_TENANT_BETA_ADMIN_EMAIL"),
           role: UserRole.ADMIN
         },
         {
-          email: process.env.SEED_TENANT_BETA_USER_EMAIL ?? "user@tenant-beta.com",
+          email: requiredEnv("SEED_TENANT_BETA_USER_EMAIL"),
           role: UserRole.USER
         }
       ],
       report: {
-        firstName: process.env.SEED_TENANT_BETA_REPORT_FIRST_NAME ?? "Jane",
-        lastName: process.env.SEED_TENANT_BETA_REPORT_LAST_NAME ?? "Smith",
-        location: process.env.SEED_TENANT_BETA_REPORT_LOCATION ?? "Barcelona",
-        interventionType: InterventionType.MEDICAL_ASSISTANCE
+        firstName: requiredEnv("SEED_TENANT_BETA_REPORT_FIRST_NAME"),
+        lastName: requiredEnv("SEED_TENANT_BETA_REPORT_LAST_NAME"),
+        location: requiredEnv("SEED_TENANT_BETA_REPORT_LOCATION"),
+        interventionType: requiredInterventionType(
+          "SEED_TENANT_BETA_REPORT_INTERVENTION_TYPE"
+        )
       }
     }
   ];

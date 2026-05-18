@@ -7,7 +7,7 @@ import { useAuth } from "../hooks/useAuth";
 
 const loginInputSchema = z.object({
   tenantSlug: z.string().trim().min(2, "El slug del tenant es obligatorio"),
-  email: z.string().trim().email("El correo no es valido"),
+  email: z.string().trim().email("El correo no es válido"),
   password: z
     .string()
     .min(8, "La contraseña debe tener al menos 8 caracteres")
@@ -27,7 +27,7 @@ const initialState: LoginFormState = {
 
 function getLoginErrorMessage(error: ApiError) {
   if (error.code === "AUTH_INVALID_CREDENTIALS") {
-    return "Credenciales invalidas para el tenant indicado";
+    return "Credenciales inválidas para el tenant indicado";
   }
 
   if (error.code === "VALIDATION_ERROR") {
@@ -35,10 +35,10 @@ function getLoginErrorMessage(error: ApiError) {
   }
 
   if (error.status >= 500) {
-    return "Error del servidor. Intentalo de nuevo en unos segundos";
+    return "Error del servidor. Inténtalo de nuevo en unos segundos";
   }
 
-  return "No se pudo iniciar sesion";
+  return "No se pudo iniciar sesión";
 }
 
 export function LoginPage() {
@@ -50,7 +50,7 @@ export function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const formHint = useMemo(
-    () => "Usa slug de tenant + correo + contraseña para iniciar sesion.",
+    () => "Usa slug de tenant + correo + contraseña para iniciar sesión.",
     []
   );
 
@@ -65,7 +65,7 @@ export function LoginPage() {
     const parsed = loginInputSchema.safeParse(form);
 
     if (!parsed.success) {
-      setErrorMessage(parsed.error.issues[0]?.message ?? "Datos de acceso invalidos");
+      setErrorMessage(parsed.error.issues[0]?.message ?? "Datos de acceso inválidos");
       return;
     }
 
@@ -79,7 +79,7 @@ export function LoginPage() {
       } else if (error instanceof Error) {
         setErrorMessage(error.message);
       } else {
-        setErrorMessage("No se pudo iniciar sesion en este momento");
+        setErrorMessage("No se pudo iniciar sesión en este momento");
       }
     } finally {
       setIsSubmitting(false);
@@ -98,18 +98,18 @@ export function LoginPage() {
               Caso 1: Acceso multi-tenant
             </h1>
             <p className="text-sm leading-6 text-slate-300 md:text-base">
-              Este acceso valida autenticacion y alcance por tenant antes de
+              Este acceso valida autenticación y alcance por tenant antes de
               entrar al flujo del formulario.
             </p>
 
             <div className="rounded-xl border border-slate-700 bg-slate-800/70 p-4 text-xs leading-5 text-slate-300 md:text-sm">
-              <p className="font-semibold text-slate-100">Como funciona</p>
+              <p className="font-semibold text-slate-100">Cómo funciona</p>
               <p className="mt-2">{formHint}</p>
             </div>
           </article>
 
           <article className="px-6 py-8 md:px-8 md:py-10">
-            <h2 className="text-xl font-semibold text-slate-900">Iniciar sesion</h2>
+            <h2 className="text-xl font-semibold text-slate-900">Iniciar sesión</h2>
             <p className="mt-1 text-sm text-slate-600">
               Introduce tu tenant y tus credenciales para continuar.
             </p>
@@ -180,7 +180,7 @@ export function LoginPage() {
                 disabled={isSubmitting}
                 className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {isSubmitting ? "Iniciando sesion..." : "Iniciar sesion"}
+                {isSubmitting ? "Iniciando sesión..." : "Iniciar sesión"}
               </button>
             </form>
           </article>

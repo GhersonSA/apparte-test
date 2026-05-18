@@ -25,8 +25,8 @@ const reportSchema = stepOneSchema.extend({
 const interventionOptions: Array<{ value: InterventionType; label: string }> = [
   { value: "ACCIDENT_TIME", label: "Hora del accidente" },
   { value: "FIRE_ASSISTANCE", label: "Asistencia por incendio" },
-  { value: "MEDICAL_ASSISTANCE", label: "Asistencia medica" },
-  { value: "VEHICLE_REMOVAL", label: "Retirada de vehiculo" }
+  { value: "MEDICAL_ASSISTANCE", label: "Asistencia médica" },
+  { value: "VEHICLE_REMOVAL", label: "Retirada de vehículo" }
 ];
 
 const initialForm: CreateReportRequest = {
@@ -120,7 +120,7 @@ export function PrivateHomePage() {
     setFormError(null);
 
     if (!token) {
-      setFormError("No hay sesion activa");
+      setFormError("No hay sesión activa");
       return;
     }
 
@@ -140,7 +140,7 @@ export function PrivateHomePage() {
       resetForm();
     } catch (error) {
       if (error instanceof ApiError && error.code === "VALIDATION_ERROR") {
-        setFormError("El backend rechazo los datos. Revisa el formulario");
+        setFormError("El backend rechazó los datos. Revisa el formulario");
       } else {
         setFormError("No se pudo guardar el reporte");
       }
@@ -153,7 +153,7 @@ export function PrivateHomePage() {
     <main className="min-h-screen bg-slate-100 px-5 py-8 md:px-8 md:py-10">
       <section className="mx-auto w-full max-w-6xl space-y-6">
         <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-900">Sesion iniciada</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Sesión iniciada</h1>
           <p className="mt-2 text-sm text-slate-600">
             Completa el formulario en dos pasos y guarda los datos asociados a tu
             tenant y usuario.
@@ -205,7 +205,7 @@ export function PrivateHomePage() {
                           lastName: event.target.value
                         }))
                       }
-                      placeholder="Ej: Martinez Ruiz"
+                      placeholder="Ej: Martínez Ruiz"
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                     />
                   </label>
@@ -223,7 +223,7 @@ export function PrivateHomePage() {
                           location: event.target.value
                         }))
                       }
-                      placeholder="Ej: Calle Alcala, Madrid"
+                      placeholder="Ej: Calle Alcalá, Madrid"
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                     />
                   </label>
@@ -240,7 +240,7 @@ export function PrivateHomePage() {
                 <>
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Tipo de intervencion
+                      Tipo de intervención
                     </span>
                     <select
                       value={form.interventionType}
@@ -329,7 +329,7 @@ export function PrivateHomePage() {
               {reportsLoading ? (
                 <p className="text-sm text-slate-600">Cargando reportes...</p>
               ) : reports.length === 0 ? (
-                <p className="text-sm text-slate-600">Todavia no hay reportes guardados.</p>
+                <p className="text-sm text-slate-600">Todavía no hay reportes guardados.</p>
               ) : (
                 <ul className="max-h-80 space-y-2 overflow-auto pr-1">
                   {reports.map((report) => (
@@ -369,7 +369,7 @@ export function PrivateHomePage() {
               navigate("/login", { replace: true });
             }}
           >
-            Cerrar sesion
+            Cerrar sesión
           </button>
         </div>
       </section>

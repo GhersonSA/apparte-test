@@ -11,7 +11,7 @@ function RedirectHome() {
   if (status === "loading") {
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
-        <p className="text-sm font-medium text-slate-600">Cargando sesion...</p>
+        <p className="text-sm font-medium text-slate-600">Cargando sesión...</p>
       </main>
     );
   }

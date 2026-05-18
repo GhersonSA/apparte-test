@@ -56,7 +56,7 @@ export type SceneMeta = {
 };
 
 export type SceneSnapshot = {
-  version: 2;
+  version: 3;
   generatedAt: string;
   selectedElementId: string | null;
   meta: SceneMeta;

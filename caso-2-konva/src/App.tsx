@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Circle, Group, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
+import type { Group as KonvaGroup } from "konva/lib/Group";
+import type { Transformer as KonvaTransformer } from "konva/lib/shapes/Transformer";
 
 import {
   createSceneElement,
@@ -159,6 +161,9 @@ function parseNumber(value: string, fallback: number) {
 
 function App() {
   const stageContainerRef = useRef<HTMLDivElement>(null);
+  const transformerRef = useRef<KonvaTransformer | null>(null);
+  const elementNodeRefs = useRef<Record<string, KonvaGroup | null>>({});
+
   const [selectedType, setSelectedType] = useState<SceneElementType>("vehicle");
   const [elements, setElements] = useState<SceneElement[]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -208,9 +213,43 @@ function App() {
     [elements]
   );
 
+  useEffect(() => {
+    const currentIds = new Set(elements.map((element) => element.id));
+
+    Object.keys(elementNodeRefs.current).forEach((id) => {
+      if (!currentIds.has(id)) {
+        delete elementNodeRefs.current[id];
+      }
+    });
+  }, [elements]);
+
+  useLayoutEffect(() => {
+    const transformer = transformerRef.current;
+
+    if (!transformer) {
+      return;
+    }
+
+    if (!selectedElement || selectedElement.locked) {
+      transformer.nodes([]);
+      transformer.getLayer()?.batchDraw();
+      return;
+    }
+
+    const selectedNode = elementNodeRefs.current[selectedElement.id];
+
+    if (selectedNode) {
+      transformer.nodes([selectedNode]);
+    } else {
+      transformer.nodes([]);
+    }
+
+    transformer.getLayer()?.batchDraw();
+  }, [selectedElement, elementsSorted]);
+
   const sceneSnapshot = useMemo<SceneSnapshot>(
     () => ({
-      version: 2,
+      version: 3,
       generatedAt: new Date().toISOString(),
       selectedElementId,
       meta: sceneMeta,
@@ -240,11 +279,14 @@ function App() {
     );
   }
 
-  function updateElementPosition(id: string, x: number, y: number) {
+  function updateElementFromNode(id: string, node: KonvaGroup) {
     patchElement(id, (element) => ({
       ...element,
-      x,
-      y,
+      x: Number(node.x().toFixed(2)),
+      y: Number(node.y().toFixed(2)),
+      rotation: Number(node.rotation().toFixed(2)),
+      scaleX: Math.max(0.2, Number(node.scaleX().toFixed(2))),
+      scaleY: Math.max(0.2, Number(node.scaleY().toFixed(2))),
       updatedAt: new Date().toISOString()
     }));
   }
@@ -471,11 +513,11 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header panel">
-        <p className="eyebrow">Caso Practico 2 · Fase 2</p>
+        <p className="eyebrow">Caso Practico 2 · Fase 3</p>
         <h1>Representacion visual interactiva de accidentes</h1>
         <p className="subtitle">
-          Modelo de escena extendido con seleccion, capas, metadatos y edicion
-          de propiedades en tiempo real.
+          Interacciones avanzadas con Konva Transformer para mover, rotar y
+          escalar elementos de escena sincronizados con el modelo JSON.
         </p>
       </header>
 
@@ -582,6 +624,9 @@ function App() {
                   {elementsSorted.map((element) => (
                     <Group
                       key={element.id}
+                      ref={(node) => {
+                        elementNodeRefs.current[element.id] = node;
+                      }}
                       x={element.x}
                       y={element.y}
                       rotation={element.rotation}
@@ -591,17 +636,47 @@ function App() {
                       onClick={() => setSelectedElementId(element.id)}
                       onTap={() => setSelectedElementId(element.id)}
                       onDragEnd={(event) =>
-                        updateElementPosition(
-                          element.id,
-                          event.target.x(),
-                          event.target.y()
-                        )
+                        updateElementFromNode(element.id, event.target as KonvaGroup)
+                      }
+                      onTransformEnd={(event) =>
+                        updateElementFromNode(element.id, event.target as KonvaGroup)
                       }
                     >
-                      {selectedElementId === element.id ? renderSelectionOutline(element) : null}
+                      {selectedElementId === element.id && element.locked
+                        ? renderSelectionOutline(element)
+                        : null}
                       {renderElementShape(element)}
                     </Group>
                   ))}
+
+                  <Transformer
+                    ref={transformerRef}
+                    rotateEnabled={Boolean(selectedElement && !selectedElement.locked)}
+                    resizeEnabled={Boolean(selectedElement && !selectedElement.locked)}
+                    enabledAnchors={
+                      selectedElement && !selectedElement.locked
+                        ? ["top-left", "top-right", "bottom-left", "bottom-right"]
+                        : []
+                    }
+                    borderStroke="#22c55e"
+                    borderStrokeWidth={2}
+                    borderDash={[5, 4]}
+                    anchorFill="#22c55e"
+                    anchorStroke="#052e16"
+                    anchorSize={9}
+                    rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+                    rotationSnapTolerance={8}
+                    boundBoxFunc={(oldBox, newBox) => {
+                      if (
+                        Math.abs(newBox.width) < 18 ||
+                        Math.abs(newBox.height) < 18
+                      ) {
+                        return oldBox;
+                      }
+
+                      return newBox;
+                    }}
+                  />
                 </Layer>
               </Stage>
             </div>
@@ -609,14 +684,15 @@ function App() {
 
           <p className="hint">
             Tip: selecciona un tipo y pulsa "Anadir seleccionado". Todos los
-            elementos son arrastrables para recrear la escena.
+            elementos son arrastrables, y los desbloqueados se pueden rotar o
+            escalar con los handlers del Transformer.
           </p>
         </article>
 
         <aside className="panel json-panel">
           <div className="panel-head">
             <h2>Inspector de escena</h2>
-            <span className="badge">v2</span>
+            <span className="badge">v3</span>
           </div>
 
           {selectedElement ? (

@@ -6,13 +6,266 @@ import type { Transformer as KonvaTransformer } from "konva/lib/shapes/Transform
 import {
   createSceneElement,
   type SceneElement,
+  type SceneElementStatus,
   type SceneMeta,
   type SceneElementType,
+  type SceneZoneType,
   type SceneSnapshot
 } from "./types/scene";
 
 const GRID_SIZE = 40;
 const SCENE_BACKGROUND = "#111827";
+const DRAFT_STORAGE_KEY = "case2-scene-draft-v4";
+
+const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
+
+const defaultStatusByType: Record<SceneElementType, SceneElementStatus> = {
+  vehicle: "free",
+  obstacle: "occupied",
+  reference: "free"
+};
+
+const defaultZoneByType: Record<SceneElementType, SceneZoneType> = {
+  vehicle: "vehicle-zone",
+  obstacle: "obstacle-zone",
+  reference: "reference-zone"
+};
+
+type SceneExportPayload = {
+  version: 4;
+  generatedAt: string;
+  selectedElementId: string | null;
+  meta: SceneMeta;
+  elements: Array<{
+    id: string;
+    type: SceneElementType;
+    status: SceneElementStatus;
+    zoneType: SceneZoneType;
+    x: number;
+    y: number;
+    rotation: number;
+    scaleX: number;
+    scaleY: number;
+    zIndex: number;
+    locked: boolean;
+    properties: SceneElement["properties"];
+  }>;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isSceneElementType(value: unknown): value is SceneElementType {
+  return value === "vehicle" || value === "obstacle" || value === "reference";
+}
+
+function isSceneElementStatus(value: unknown): value is SceneElementStatus {
+  return value === "free" || value === "occupied";
+}
+
+function isSceneZoneType(value: unknown): value is SceneZoneType {
+  return (
+    value === "vehicle-zone" ||
+    value === "obstacle-zone" ||
+    value === "reference-zone"
+  );
+}
+
+function toNumber(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function toString(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
+function toHexColor(value: unknown, fallback: string) {
+  return typeof value === "string" && HEX_COLOR_REGEX.test(value) ? value : fallback;
+}
+
+function toIsoDate(value: unknown, fallback: string) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : fallback;
+}
+
+function hydrateSceneElement(rawElement: unknown): SceneElement | null {
+  if (!isRecord(rawElement)) {
+    return null;
+  }
+
+  const type = rawElement.type;
+
+  if (!isSceneElementType(type)) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const rawProperties = isRecord(rawElement.properties) ? rawElement.properties : {};
+
+  const baseElement = {
+    id: toString(rawElement.id, createSceneElement(type, 0).id),
+    type,
+    status: isSceneElementStatus(rawElement.status)
+      ? rawElement.status
+      : defaultStatusByType[type],
+    zoneType: isSceneZoneType(rawElement.zoneType)
+      ? rawElement.zoneType
+      : defaultZoneByType[type],
+    x: toNumber(rawElement.x, 0),
+    y: toNumber(rawElement.y, 0),
+    rotation: toNumber(rawElement.rotation, 0),
+    scaleX: Math.max(0.2, toNumber(rawElement.scaleX, 1)),
+    scaleY: Math.max(0.2, toNumber(rawElement.scaleY, 1)),
+    zIndex: Math.round(toNumber(rawElement.zIndex, 0)),
+    locked: Boolean(rawElement.locked),
+    createdAt: toIsoDate(rawElement.createdAt, now),
+    updatedAt: toIsoDate(rawElement.updatedAt, now)
+  };
+
+  if (type === "vehicle") {
+    return {
+      ...baseElement,
+      type,
+      properties: {
+        label: toString(rawProperties.label, "Vehiculo"),
+        color: toHexColor(rawProperties.color, "#38bdf8"),
+        width: Math.max(12, toNumber(rawProperties.width, 76)),
+        height: Math.max(12, toNumber(rawProperties.height, 36))
+      }
+    };
+  }
+
+  if (type === "obstacle") {
+    return {
+      ...baseElement,
+      type,
+      properties: {
+        label: toString(rawProperties.label, "Obstaculo"),
+        color: toHexColor(rawProperties.color, "#f97316"),
+        radius: Math.max(8, toNumber(rawProperties.radius, 17))
+      }
+    };
+  }
+
+  return {
+    ...baseElement,
+    type,
+    properties: {
+      label: toString(rawProperties.label, "Referencia"),
+      color: toHexColor(rawProperties.color, "#22c55e"),
+      length: Math.max(20, toNumber(rawProperties.length, 90))
+    }
+  };
+}
+
+function hydrateSceneSnapshot(rawSnapshot: unknown): SceneSnapshot | null {
+  if (!isRecord(rawSnapshot) || !Array.isArray(rawSnapshot.elements)) {
+    return null;
+  }
+
+  const rawMeta = isRecord(rawSnapshot.meta) ? rawSnapshot.meta : {};
+  const hydratedElements = rawSnapshot.elements
+    .map((rawElement) => hydrateSceneElement(rawElement))
+    .filter((element): element is SceneElement => element !== null);
+
+  if (hydratedElements.length !== rawSnapshot.elements.length) {
+    return null;
+  }
+
+  const selectedElementId =
+    typeof rawSnapshot.selectedElementId === "string"
+      ? rawSnapshot.selectedElementId
+      : null;
+
+  return {
+    version: 4,
+    generatedAt: toIsoDate(rawSnapshot.generatedAt, new Date().toISOString()),
+    selectedElementId: hydratedElements.some((element) => element.id === selectedElementId)
+      ? selectedElementId
+      : null,
+    meta: {
+      canvasWidth: Math.max(1, toNumber(rawMeta.canvasWidth, 960)),
+      canvasHeight: Math.max(1, toNumber(rawMeta.canvasHeight, 580)),
+      gridSize: Math.max(1, toNumber(rawMeta.gridSize, GRID_SIZE)),
+      background: toString(rawMeta.background, SCENE_BACKGROUND)
+    },
+    elements: hydratedElements
+  };
+}
+
+function validateSceneSnapshot(snapshot: SceneSnapshot) {
+  const issues: string[] = [];
+
+  if (snapshot.elements.length === 0) {
+    issues.push("La escena no tiene elementos para exportar.");
+  }
+
+  snapshot.elements.forEach((element, index) => {
+    if (!element.id) {
+      issues.push(`Elemento ${index + 1} sin id.`);
+    }
+
+    if (!Number.isFinite(element.x) || !Number.isFinite(element.y)) {
+      issues.push(`Elemento ${element.id} con posicion invalida.`);
+    }
+
+    if (!isSceneElementStatus(element.status)) {
+      issues.push(`Elemento ${element.id} con estado invalido.`);
+    }
+
+    if (!isSceneZoneType(element.zoneType)) {
+      issues.push(`Elemento ${element.id} con zona invalida.`);
+    }
+
+    if (element.type === "vehicle") {
+      if (element.properties.width <= 0 || element.properties.height <= 0) {
+        issues.push(`Elemento ${element.id} con dimensiones invalidas.`);
+      }
+      return;
+    }
+
+    if (element.type === "obstacle") {
+      if (element.properties.radius <= 0) {
+        issues.push(`Elemento ${element.id} con radio invalido.`);
+      }
+      return;
+    }
+
+    if (element.properties.length <= 0) {
+      issues.push(`Elemento ${element.id} con longitud invalida.`);
+    }
+  });
+
+  return issues;
+}
+
+function buildSceneExportPayload(snapshot: SceneSnapshot): SceneExportPayload {
+  return {
+    version: 4,
+    generatedAt: snapshot.generatedAt,
+    selectedElementId: snapshot.selectedElementId,
+    meta: snapshot.meta,
+    elements: snapshot.elements.map((element) => ({
+      id: element.id,
+      type: element.type,
+      status: element.status,
+      zoneType: element.zoneType,
+      x: element.x,
+      y: element.y,
+      rotation: element.rotation,
+      scaleX: element.scaleX,
+      scaleY: element.scaleY,
+      zIndex: element.zIndex,
+      locked: element.locked,
+      properties: element.properties
+    }))
+  };
+}
 
 const toolbarOptions: Array<{ type: SceneElementType; label: string }> = [
   { type: "vehicle", label: "Vehiculo" },
@@ -168,6 +421,7 @@ function App() {
   const [elements, setElements] = useState<SceneElement[]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState({ width: 960, height: 580 });
+  const [draftFeedback, setDraftFeedback] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     const container = stageContainerRef.current;
@@ -191,6 +445,10 @@ function App() {
     return () => {
       resizeObserver.disconnect();
     };
+  }, []);
+
+  useEffect(() => {
+    loadDraftFromLocalStorage(true);
   }, []);
 
   const sceneMeta = useMemo<SceneMeta>(
@@ -249,7 +507,7 @@ function App() {
 
   const sceneSnapshot = useMemo<SceneSnapshot>(
     () => ({
-      version: 3,
+      version: 4,
       generatedAt: new Date().toISOString(),
       selectedElementId,
       meta: sceneMeta,
@@ -387,6 +645,30 @@ function App() {
     });
   }
 
+  function updateSelectedStatus(nextStatus: SceneElementStatus) {
+    if (!selectedElement) {
+      return;
+    }
+
+    patchElement(selectedElement.id, (element) => ({
+      ...element,
+      status: nextStatus,
+      updatedAt: new Date().toISOString()
+    }));
+  }
+
+  function updateSelectedZoneType(nextZoneType: SceneZoneType) {
+    if (!selectedElement) {
+      return;
+    }
+
+    patchElement(selectedElement.id, (element) => ({
+      ...element,
+      zoneType: nextZoneType,
+      updatedAt: new Date().toISOString()
+    }));
+  }
+
   function updateSelectedVehicleDimension(
     dimension: "width" | "height",
     nextValue: number
@@ -496,28 +778,127 @@ function App() {
     setSelectedElementId(null);
   }
 
-  function exportSceneJson() {
-    const blob = new Blob([jsonPreview], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  function saveDraftToLocalStorage() {
+    const issues = validateSceneSnapshot(sceneSnapshot);
 
-    anchor.href = url;
-    anchor.download = `case2-scene-${stamp}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    if (issues.length > 0) {
+      setDraftFeedback({
+        kind: "error",
+        text: `No se pudo guardar borrador: ${issues[0]}`
+      });
+      return;
+    }
+
+    try {
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(sceneSnapshot));
+      setDraftFeedback({ kind: "ok", text: "Borrador guardado en localStorage." });
+    } catch {
+      setDraftFeedback({
+        kind: "error",
+        text: "No se pudo guardar el borrador en localStorage."
+      });
+    }
+  }
+
+  function loadDraftFromLocalStorage(silentWhenMissing = false) {
+    try {
+      const rawDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+
+      if (!rawDraft) {
+        if (!silentWhenMissing) {
+          setDraftFeedback({ kind: "error", text: "No hay borrador guardado." });
+        }
+        return;
+      }
+
+      const parsedDraft: unknown = JSON.parse(rawDraft);
+      const hydratedSnapshot = hydrateSceneSnapshot(parsedDraft);
+
+      if (!hydratedSnapshot) {
+        setDraftFeedback({
+          kind: "error",
+          text: "El borrador guardado es invalido y no se puede cargar."
+        });
+        return;
+      }
+
+      const issues = validateSceneSnapshot(hydratedSnapshot);
+
+      if (issues.length > 0) {
+        setDraftFeedback({
+          kind: "error",
+          text: `El borrador no paso validacion: ${issues[0]}`
+        });
+        return;
+      }
+
+      setElements(hydratedSnapshot.elements);
+      setSelectedElementId(hydratedSnapshot.selectedElementId);
+      setDraftFeedback({ kind: "ok", text: "Borrador cargado correctamente." });
+    } catch {
+      setDraftFeedback({
+        kind: "error",
+        text: "No se pudo cargar el borrador desde localStorage."
+      });
+    }
+  }
+
+  function clearDraftFromLocalStorage() {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setDraftFeedback({ kind: "ok", text: "Borrador local eliminado." });
+    } catch {
+      setDraftFeedback({
+        kind: "error",
+        text: "No se pudo eliminar el borrador local."
+      });
+    }
+  }
+
+  function exportSceneJson() {
+    const issues = validateSceneSnapshot(sceneSnapshot);
+
+    if (issues.length > 0) {
+      setDraftFeedback({
+        kind: "error",
+        text: `No se pudo exportar JSON: ${issues[0]}`
+      });
+      return;
+    }
+
+    const exportPayload = buildSceneExportPayload(sceneSnapshot);
+
+    try {
+      const serializedExport = JSON.stringify(exportPayload, null, 2);
+      const blob = new Blob([serializedExport], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+      anchor.href = url;
+      anchor.download = `case2-scene-${stamp}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+
+      setDraftFeedback({ kind: "ok", text: "Escena exportada a JSON correctamente." });
+    } catch {
+      setDraftFeedback({
+        kind: "error",
+        text: "Ocurrio un error al generar el archivo JSON."
+      });
+    }
   }
 
   return (
     <main className="app-shell">
       <header className="app-header panel">
-        <p className="eyebrow">Caso Practico 2 · Fase 3</p>
+        <p className="eyebrow">Caso Practico 2 · Fase 4</p>
         <h1>Representacion visual interactiva de accidentes</h1>
         <p className="subtitle">
-          Interacciones avanzadas con Konva Transformer para mover, rotar y
-          escalar elementos de escena sincronizados con el modelo JSON.
+          Exportacion validada a JSON y persistencia local de borradores sin
+          perder la escena al recargar.
         </p>
       </header>
 
@@ -692,7 +1073,7 @@ function App() {
         <aside className="panel json-panel">
           <div className="panel-head">
             <h2>Inspector de escena</h2>
-            <span className="badge">v3</span>
+            <span className="badge">v4</span>
           </div>
 
           {selectedElement ? (
@@ -705,6 +1086,33 @@ function App() {
               <label className="field">
                 <span>Tipo</span>
                 <input value={selectedElement.type} readOnly />
+              </label>
+
+              <label className="field">
+                <span>Estado</span>
+                <select
+                  value={selectedElement.status}
+                  onChange={(event) =>
+                    updateSelectedStatus(event.target.value as SceneElementStatus)
+                  }
+                >
+                  <option value="free">free</option>
+                  <option value="occupied">occupied</option>
+                </select>
+              </label>
+
+              <label className="field">
+                <span>Zone Type</span>
+                <select
+                  value={selectedElement.zoneType}
+                  onChange={(event) =>
+                    updateSelectedZoneType(event.target.value as SceneZoneType)
+                  }
+                >
+                  <option value="vehicle-zone">vehicle-zone</option>
+                  <option value="obstacle-zone">obstacle-zone</option>
+                  <option value="reference-zone">reference-zone</option>
+                </select>
               </label>
 
               <label className="field">
@@ -883,10 +1291,28 @@ function App() {
           </div>
 
           <div className="actions">
+            <button type="button" className="btn ghost" onClick={saveDraftToLocalStorage}>
+              Guardar borrador
+            </button>
+
+            <button type="button" className="btn ghost" onClick={() => loadDraftFromLocalStorage(false)}>
+              Cargar borrador
+            </button>
+
+            <button type="button" className="btn danger" onClick={clearDraftFromLocalStorage}>
+              Eliminar borrador
+            </button>
+
             <button type="button" className="btn primary" onClick={exportSceneJson}>
               Exportar JSON
             </button>
           </div>
+
+          {draftFeedback ? (
+            <p className={`hint compact ${draftFeedback.kind === "error" ? "hint-error" : "hint-success"}`}>
+              {draftFeedback.text}
+            </p>
+          ) : null}
 
           <pre>{jsonPreview}</pre>
         </aside>

@@ -1,6 +1,6 @@
 # Caso Practico 2 · Representacion visual interactiva de accidentes
 
-Fase 3 implementada con React + Konva.
+Fase 4 implementada con React + Konva.
 
 ## Alcance de esta fase
 
@@ -18,6 +18,8 @@ Fase 3 implementada con React + Konva.
   - escala mediante handlers
   - limites minimos para evitar colapso visual
 - Inspector para editar propiedades principales:
+  - estado (`free` | `occupied`)
+  - tipo de zona (`vehicle-zone` | `obstacle-zone` | `reference-zone`)
   - posicion (x, y)
   - rotacion
   - escala (scaleX, scaleY)
@@ -27,7 +29,11 @@ Fase 3 implementada con React + Konva.
   - bloquear/desbloquear elemento
   - enviar al frente por zIndex
   - eliminar elemento seleccionado
-- Exportacion de la escena en formato `.json`.
+- Persistencia de borrador en `localStorage`:
+  - guardar borrador
+  - cargar borrador
+  - eliminar borrador
+- Exportacion de la escena en formato `.json` con validacion previa.
 
 ## Modelo de datos utilizado
 
@@ -35,6 +41,8 @@ Cada elemento de la escena mantiene:
 
 - `id`: identificador unico.
 - `type`: tipo de elemento (`vehicle`, `obstacle`, `reference`).
+- `status`: estado del elemento (`free`, `occupied`).
+- `zoneType`: clasificacion de zona del elemento.
 - `x`, `y`: posicion en el lienzo.
 - `rotation`: rotacion actual.
 - `scaleX`, `scaleY`: escala del elemento.
@@ -49,7 +57,7 @@ Ademas, la escena exporta metadatos:
 - `meta.gridSize`
 - `meta.background`
 - `selectedElementId`
-- `version`: `3`
+- `version`: `4`
 
 Ejemplo:
 
@@ -57,6 +65,8 @@ Ejemplo:
 {
   "id": "element-123",
   "type": "vehicle",
+  "status": "free",
+  "zoneType": "vehicle-zone",
   "x": 310,
   "y": 180,
   "rotation": 0,

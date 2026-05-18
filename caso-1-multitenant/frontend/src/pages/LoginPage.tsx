@@ -1,8 +1,9 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { ApiError } from "../api/http";
+import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../hooks/useAuth";
 
 const loginInputSchema = z.object({
@@ -49,11 +50,6 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const formHint = useMemo(
-    () => "Usa slug de tenant + correo + contraseña para iniciar sesión.",
-    []
-  );
-
   if (status === "authenticated") {
     return <Navigate to="/app" replace />;
   }
@@ -87,41 +83,89 @@ export function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-cyan-50 px-5 py-10">
-      <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-300/50">
-        <div className="grid md:grid-cols-[1.05fr_1fr]">
-          <article className="space-y-4 bg-slate-900 px-7 py-8 text-slate-100 md:px-8 md:py-10">
-            <span className="inline-block rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-200">
-              Apparte - Prueba técnica GhersonSA
-            </span>
-            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-              Caso 1: Acceso multi-tenant
+    <main className="relative min-h-screen overflow-hidden bg-brand-primary px-5 py-10 md:px-8 md:py-14">
+      <div className="pointer-events-none absolute -left-28 top-12 h-64 w-64 rounded-full bg-brand-accent/20 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-6 right-0 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
+
+      <section className="relative mx-auto w-full max-w-6xl">
+        <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <article className="glass-card p-7 md:p-10">
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center rounded-full border border-brand-accent/40 bg-brand-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-accent">
+                Apparte - Prueba técnica GhersonSA
+              </span>
+              <ThemeToggle />
+            </div>
+
+            <h1 className="mt-6 text-3xl font-bold tracking-tight text-white md:text-5xl">
+              Control de siniestros
+              <span className="block text-brand-accent">automovilísticos</span>
             </h1>
-            <p className="text-sm leading-6 text-slate-300 md:text-base">
-              Este acceso valida autenticación y alcance por tenant antes de
-              entrar al flujo del formulario.
+
+            <p className="mt-5 max-w-xl text-sm leading-6 text-brand-muted md:text-base">
+              Consola empresarial para aseguradoras de coche: autenticación
+              multi-tenant, trazabilidad por operador y registro operativo en dos
+              pasos para incidentes en carretera.
             </p>
 
-            <div className="rounded-xl border border-slate-700 bg-slate-800/70 p-4 text-xs leading-5 text-slate-300 md:text-sm">
-              <p className="font-semibold text-slate-100">Cómo funciona</p>
-              <p className="mt-2">{formHint}</p>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/5 bg-white/5 p-4 transition-all duration-3xl hover:-translate-y-0.5 hover:bg-white/10">
+                <p className="text-xs uppercase tracking-wide text-brand-muted">
+                  Estado
+                </p>
+                <p className="mt-2 text-sm font-semibold text-white">Operativo 24/7</p>
+              </div>
+              <div className="rounded-2xl border border-white/5 bg-white/5 p-4 transition-all duration-3xl hover:-translate-y-0.5 hover:bg-white/10">
+                <p className="text-xs uppercase tracking-wide text-brand-muted">
+                  Flota
+                </p>
+                <p className="mt-2 text-sm font-semibold text-white">Automóvil y grúa</p>
+              </div>
+              <div className="rounded-2xl border border-white/5 bg-white/5 p-4 transition-all duration-3xl hover:-translate-y-0.5 hover:bg-white/10">
+                <p className="text-xs uppercase tracking-wide text-brand-muted">
+                  Seguridad
+                </p>
+                <p className="mt-2 text-sm font-semibold text-white">Aislamiento por tenant</p>
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-2xl border border-white/5 bg-black/20 p-3 text-xs leading-5 text-brand-muted">
+              <p className="font-semibold tracking-tight text-white">Cómo funciona</p>
+              <p className="mt-1">
+                Usa slug de tenant, correo y contraseña para iniciar sesión.
+              </p>
+
+              <p className="mt-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] leading-4">
+                <span className="font-semibold text-white">tenant-alpha</span>
+                {": "}
+                admin@alpha.com, user@alpha.com
+                {" · "}
+                <span className="font-semibold text-white">tenant-beta</span>
+                {": "}
+                admin@beta.com, user@beta.com
+              </p>
+              <p className="mt-1 text-[11px] leading-4">
+                Contraseña para todas: <span className="font-semibold text-white">Password123!</span>
+              </p>
             </div>
           </article>
 
-          <article className="px-6 py-8 md:px-8 md:py-10">
-            <h2 className="text-xl font-semibold text-slate-900">Iniciar sesión</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Introduce tu tenant y tus credenciales para continuar.
+          <article className="glass-card w-full p-7 md:p-8 lg:min-h-[34rem] lg:max-w-[28rem] lg:justify-self-center lg:self-center">
+            <h2 className="text-2xl font-semibold tracking-tight text-white">
+              Iniciar sesión
+            </h2>
+            <p className="mt-2 text-sm text-brand-muted">
+              Accede a tu consola de gestión para tramitación de partes.
             </p>
 
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+            <form className="mt-7 space-y-4" onSubmit={handleSubmit} noValidate>
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
+                <span className="mb-2 block text-sm font-medium text-brand-muted">
                   Slug del tenant
                 </span>
                 <input
                   type="text"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                  className="brand-input"
                   placeholder="tenant-alpha"
                   value={form.tenantSlug}
                   onChange={(event) =>
@@ -134,13 +178,13 @@ export function LoginPage() {
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
+                <span className="mb-2 block text-sm font-medium text-brand-muted">
                   Email
                 </span>
                 <input
                   type="email"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-                  placeholder="admin@tenant-alpha.com"
+                  className="brand-input"
+                  placeholder="admin@alpha.com"
                   value={form.email}
                   onChange={(event) =>
                     setForm((prev) => ({
@@ -152,12 +196,12 @@ export function LoginPage() {
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
+                <span className="mb-2 block text-sm font-medium text-brand-muted">
                   Contraseña
                 </span>
                 <input
                   type="password"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                  className="brand-input"
                   placeholder="********"
                   value={form.password}
                   onChange={(event) =>
@@ -170,16 +214,12 @@ export function LoginPage() {
               </label>
 
               {errorMessage ? (
-                <p className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                <p className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                   {errorMessage}
                 </p>
               ) : null}
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
-              >
+              <button type="submit" disabled={isSubmitting} className="brand-button w-full disabled:cursor-not-allowed disabled:opacity-70">
                 {isSubmitting ? "Iniciando sesión..." : "Iniciar sesión"}
               </button>
             </form>

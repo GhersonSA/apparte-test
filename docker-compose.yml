@@ -31,7 +31,9 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-apparte_user}:${POSTGRES_PASSWORD:-apparte_pass}@postgres:5432/${POSTGRES_DB:-apparte_db}
       JWT_SECRET: ${JWT_SECRET:-change_this_in_production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       CORS_ORIGIN: http://localhost:5173
+      PASSWORD_SALT_ROUNDS: ${PASSWORD_SALT_ROUNDS:-10}
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD}
     ports:
       - "3001:3001"

@@ -12,6 +12,7 @@ Este caso implementa una solución fullstack sencilla, con foco en dos puntos cl
 - Base de datos: PostgreSQL
 - ORM: Prisma
 - Autenticación: JWT (Bearer token)
+- Validación: Zod
 
 ## Alcance implementado
 
@@ -189,6 +190,6 @@ El seed crea dos tenants y usuarios para cada tenant.
 Login de referencia:
 
 - `tenantSlug`: `tenant-alpha`
-- `email`: `admin@tenant-alpha.com`
+- `email`: `admin@alpha.com`
 - `password`: valor de `SEED_DEFAULT_PASSWORD`
 

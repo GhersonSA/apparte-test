@@ -37,7 +37,7 @@ docker compose exec backend npm run db:seed
 ## Credenciales de prueba
 
 - `tenantSlug`: `tenant-alpha`
-- `email`: `admin@tenant-alpha.com`
+- `email`: `admin@alpha.com`
 - `password`: el valor de `SEED_DEFAULT_PASSWORD` en `.env`
 
 ## Parar servicios

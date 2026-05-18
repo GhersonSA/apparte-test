@@ -18,6 +18,12 @@ const SCENE_BACKGROUND = "#111827";
 const DRAFT_STORAGE_KEY = "case2-scene-draft-v4";
 const FEEDBACK_TIMEOUT_MS = 2600;
 const REPLAY_SEGMENT_MS = 1200;
+const REPLAY_CAPTURE_FPS = 30;
+const REPLAY_VIDEO_MIME_TYPES = [
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm"
+] as const;
 const KEYFRAME_SLOTS = ["T1", "T2", "T3", "T4", "T5"] as const;
 
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
@@ -69,6 +75,13 @@ type ElementKeyframe = {
 };
 
 type KeyframesByElement = Record<string, Partial<Record<KeyframeSlot, ElementKeyframe>>>;
+
+type ReplayStartOptions = {
+  onFinished?: (completed: boolean) => void;
+  suppressStartFeedback?: boolean;
+  suppressCompletionFeedback?: boolean;
+  suppressNoReadyFeedback?: boolean;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -538,11 +551,13 @@ function App() {
   const replayFrameRef = useRef<number | null>(null);
   const replayCancelledRef = useRef(false);
   const replayRunningRef = useRef(false);
+  const replayFinishedCallbackRef = useRef<((completed: boolean) => void) | null>(null);
   const shortcutActionsRef = useRef<{
     removeSelectedElement: (skipConfirmation?: boolean) => void;
     saveDraftToLocalStorage: () => void;
     loadDraftFromLocalStorage: (silentWhenMissing?: boolean) => void;
     exportSceneJson: () => void;
+    exportReplayVideo: () => void;
     playReplay: () => void;
     stopReplay: (notify?: boolean) => void;
   }>({
@@ -550,6 +565,7 @@ function App() {
     saveDraftToLocalStorage: () => undefined,
     loadDraftFromLocalStorage: () => undefined,
     exportSceneJson: () => undefined,
+    exportReplayVideo: () => undefined,
     playReplay: () => undefined,
     stopReplay: () => undefined
   });
@@ -562,6 +578,7 @@ function App() {
   const [keyframesByElement, setKeyframesByElement] = useState<KeyframesByElement>({});
   const [isReplayRunning, setIsReplayRunning] = useState(false);
   const [activeReplaySegment, setActiveReplaySegment] = useState<string | null>(null);
+  const [isVideoExporting, setIsVideoExporting] = useState(false);
 
   replayRunningRef.current = isReplayRunning;
 
@@ -652,6 +669,11 @@ function App() {
         KEYFRAME_SLOTS[index + 1]
       ] as [KeyframeSlot, KeyframeSlot]),
     []
+  );
+
+  const replayTransitionsLabel = useMemo(
+    () => keyframeTransitions.map(([fromSlot, toSlot]) => `${fromSlot}->${toSlot}`).join(", "),
+    [keyframeTransitions]
   );
 
   const replayReadyElementIds = useMemo(
@@ -1190,6 +1212,9 @@ function App() {
   }
 
   function stopReplay(notify = false) {
+    const finishedCallback = replayFinishedCallbackRef.current;
+    replayFinishedCallbackRef.current = null;
+
     replayCancelledRef.current = true;
 
     if (replayFrameRef.current !== null) {
@@ -1202,32 +1227,46 @@ function App() {
       setActiveReplaySegment(null);
     }
 
+    if (finishedCallback) {
+      finishedCallback(false);
+    }
+
     if (notify) {
       setUiFeedback({ kind: "info", text: "Replay detenido." });
     }
   }
 
-  function playReplay() {
+  function playReplay(options: ReplayStartOptions = {}) {
+    const {
+      onFinished,
+      suppressStartFeedback = false,
+      suppressCompletionFeedback = false,
+      suppressNoReadyFeedback = false
+    } = options;
+
     if (isReplayRunning) {
-      return;
+      return false;
     }
 
     if (replayReadyElementIds.length === 0) {
-      const transitionsLabel = keyframeTransitions
-        .map(([fromSlot, toSlot]) => `${fromSlot}->${toSlot}`)
-        .join(", ");
+      if (!suppressNoReadyFeedback) {
+        setUiFeedback({
+          kind: "warning",
+          text: `No hay objetos con transiciones completas (${replayTransitionsLabel}).`
+        });
+      }
 
-      setUiFeedback({
-        kind: "warning",
-        text: `No hay objetos con transiciones completas (${transitionsLabel}).`
-      });
-      return;
+      return false;
     }
 
+    replayFinishedCallbackRef.current = onFinished ?? null;
     replayCancelledRef.current = false;
     setSelectedElementId(null);
     setIsReplayRunning(true);
-    setUiFeedback({ kind: "info", text: "Replay iniciado." });
+
+    if (!suppressStartFeedback) {
+      setUiFeedback({ kind: "info", text: "Replay iniciado." });
+    }
 
     const segmentPairs = keyframeTransitions;
 
@@ -1267,7 +1306,17 @@ function App() {
         setIsReplayRunning(false);
         setActiveReplaySegment(null);
         replayFrameRef.current = null;
-        setUiFeedback({ kind: "success", text: "Replay completado." });
+        const finishedCallback = replayFinishedCallbackRef.current;
+        replayFinishedCallbackRef.current = null;
+
+        if (!suppressCompletionFeedback) {
+          setUiFeedback({ kind: "success", text: "Replay completado." });
+        }
+
+        if (finishedCallback) {
+          finishedCallback(true);
+        }
+
         return;
       }
 
@@ -1343,6 +1392,177 @@ function App() {
     };
 
     runNextSegment();
+
+    return true;
+  }
+
+  async function exportReplayVideo() {
+    if (isVideoExporting) {
+      return;
+    }
+
+    if (isReplayRunning) {
+      setUiFeedback({
+        kind: "warning",
+        text: "Deten el replay actual antes de exportar video."
+      });
+      return;
+    }
+
+    if (replayReadyElementIds.length === 0) {
+      setUiFeedback({
+        kind: "warning",
+        text: `No hay objetos con transiciones completas (${replayTransitionsLabel}).`
+      });
+      return;
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      setUiFeedback({
+        kind: "error",
+        text: "Tu navegador no soporta exportacion de video con MediaRecorder."
+      });
+      return;
+    }
+
+    const stageCanvas = stageContainerRef.current?.querySelector("canvas");
+
+    if (!(stageCanvas instanceof HTMLCanvasElement) || typeof stageCanvas.captureStream !== "function") {
+      setUiFeedback({
+        kind: "error",
+        text: "No fue posible capturar el lienzo para exportar video."
+      });
+      return;
+    }
+
+    const stream = stageCanvas.captureStream(REPLAY_CAPTURE_FPS);
+    const mimeType = REPLAY_VIDEO_MIME_TYPES.find((candidate) =>
+      typeof MediaRecorder.isTypeSupported === "function"
+        ? MediaRecorder.isTypeSupported(candidate)
+        : candidate === "video/webm"
+    );
+
+    let recorder: MediaRecorder;
+
+    try {
+      recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+    } catch {
+      stream.getTracks().forEach((track) => track.stop());
+      setUiFeedback({
+        kind: "error",
+        text: "No se pudo iniciar la captura de video del replay."
+      });
+      return;
+    }
+
+    const chunks: BlobPart[] = [];
+    const recordingDone = new Promise<Blob>((resolve, reject) => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        reject(new Error("media-recorder-error"));
+      };
+
+      recorder.onstop = () => {
+        resolve(new Blob(chunks, { type: mimeType ?? "video/webm" }));
+      };
+    });
+
+    setIsVideoExporting(true);
+    setUiFeedback({ kind: "info", text: "Exportando replay a video..." });
+
+    try {
+      recorder.start(200);
+
+      let replayStarted = false;
+      const replayFinished = new Promise<boolean>((resolve) => {
+        replayStarted = playReplay({
+          onFinished: (completed) => {
+            resolve(completed);
+
+            if (recorder.state !== "inactive") {
+              recorder.stop();
+            }
+          },
+          suppressStartFeedback: true,
+          suppressCompletionFeedback: true,
+          suppressNoReadyFeedback: true
+        });
+
+        if (!replayStarted) {
+          resolve(false);
+        }
+      });
+
+      if (!replayStarted) {
+        if (recorder.state !== "inactive") {
+          recorder.stop();
+        }
+
+        await recordingDone;
+
+        setUiFeedback({
+          kind: "warning",
+          text: `No hay objetos con transiciones completas (${replayTransitionsLabel}).`
+        });
+
+        return;
+      }
+
+      const replayCompleted = await replayFinished;
+      const videoBlob = await recordingDone;
+
+      if (!replayCompleted) {
+        setUiFeedback({
+          kind: "warning",
+          text: "Exportacion cancelada: el replay se detuvo antes de completarse."
+        });
+        return;
+      }
+
+      if (videoBlob.size === 0) {
+        setUiFeedback({
+          kind: "error",
+          text: "No se pudo generar contenido de video para el replay."
+        });
+        return;
+      }
+
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const videoUrl = URL.createObjectURL(videoBlob);
+      const anchor = document.createElement("a");
+
+      anchor.href = videoUrl;
+      anchor.download = `case2-replay-${stamp}.webm`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(videoUrl);
+
+      setUiFeedback({ kind: "success", text: "Replay exportado a video correctamente." });
+    } catch {
+      if (replayRunningRef.current) {
+        stopReplay(false);
+      }
+
+      if (recorder.state !== "inactive") {
+        recorder.stop();
+      }
+
+      setUiFeedback({
+        kind: "error",
+        text: "Ocurrio un error al exportar el replay en video."
+      });
+    } finally {
+      stream.getTracks().forEach((track) => track.stop());
+      setIsVideoExporting(false);
+    }
   }
 
   shortcutActionsRef.current = {
@@ -1350,6 +1570,7 @@ function App() {
     saveDraftToLocalStorage,
     loadDraftFromLocalStorage,
     exportSceneJson,
+    exportReplayVideo,
     playReplay,
     stopReplay
   };
@@ -1378,6 +1599,12 @@ function App() {
       if (ctrlOrMeta && key === "e") {
         event.preventDefault();
         shortcutActionsRef.current.exportSceneJson();
+        return;
+      }
+
+      if (ctrlOrMeta && event.shiftKey && key === "v") {
+        event.preventDefault();
+        shortcutActionsRef.current.exportReplayVideo();
         return;
       }
 
@@ -1414,11 +1641,11 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header panel">
-        <p className="eyebrow">Caso Practico 2 · Fase 7 (Bonus)</p>
+        <p className="eyebrow">Caso Practico 2 · Fase 8 (Bonus)</p>
         <h1>Representacion visual interactiva de accidentes</h1>
         <p className="subtitle">
           Replay tipo VAR por keyframes (T1 a T5) con interpolacion de
-          movimiento para reconstruir el accidente en el lienzo.
+          movimiento y exportacion del replay en video WebM.
         </p>
       </header>
 
@@ -1463,7 +1690,7 @@ function App() {
           <p className="hint compact keyboard-hints">
             Atajos: Supr/Backspace eliminar seleccionado, Ctrl+S guardar
             borrador, Ctrl+L cargar borrador, Ctrl+E exportar JSON y Ctrl+P
-            iniciar/detener replay.
+            iniciar/detener replay. Ctrl+Mayus+V exporta replay en video.
           </p>
 
           <section className="timeline-panel">
@@ -1514,9 +1741,18 @@ function App() {
                     playReplay();
                   }
                 }}
-                disabled={!isReplayRunning && replayReadyElementIds.length === 0}
+                disabled={isVideoExporting || (!isReplayRunning && replayReadyElementIds.length === 0)}
               >
                 {isReplayRunning ? "Detener replay" : "Play replay"}
+              </button>
+
+              <button
+                type="button"
+                className="btn accent"
+                onClick={exportReplayVideo}
+                disabled={isReplayRunning || isVideoExporting || replayReadyElementIds.length === 0}
+              >
+                {isVideoExporting ? "Exportando video..." : "Exportar replay en video"}
               </button>
             </div>
 

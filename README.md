@@ -2,6 +2,16 @@
 
 Repositorio de la prueba técnica fullstack. La solución está organizada por casos para que la revisión sea rápida y trazable.
 
+## Vista rápida (demos)
+
+### Caso 1 - Multi-tenant
+
+![Demo caso 1](./assets/caso1.gif)
+
+### Caso 2 - Editor visual Konva
+
+![Demo caso 2](./assets/caso2.gif)
+
 ## Estructura
 
 - `caso-1-multitenant/`
@@ -48,5 +58,18 @@ docker compose exec backend npm run db:seed
 ```bash
 docker compose down
 ```
+
+## Información adicional
+
+**MÉTRICAS DE INGENIERÍA Y BUENAS PRÁCTICAS**
+
+- Tiempo total de desarrollo e investigación: ~9 horas de ejecución limpia.
+- Flujo de control de versiones: implementación rigurosa de Git Flow mediante ramas de características independientes.
+- Estándar de mensajes de commit: uso estricto de Conventional Commits (`feat(db):`, `chore(repo):`, `docs(case1):`, etc.).
+- Decisiones de colores y componentes basadas en psicología visual del usuario para priorizar claridad y foco.
+- Estrategia de validación técnica: build/lint/test ejecutados tras cambios relevantes para minimizar regresiones.
+- Arquitectura orientada a mantenibilidad: separación por casos, módulos y responsabilidades por capa.
+- Seguridad en profundidad (caso 1): autenticación JWT, autorización por roles y aislamiento multi-tenant reforzado en aplicación + base de datos.
+- Trazabilidad documental: README principal + README por caso con objetivos, evidencias y demos visuales.
 
 

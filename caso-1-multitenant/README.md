@@ -219,7 +219,7 @@ erDiagram
 
   USERS {
     uuid id PK
-    string email UK_PER_TENANT
+    string email UK
     string password_hash
     string role
     uuid tenant_id FK

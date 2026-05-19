@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { ApiError } from "../api/http";
+import { BrandWatermark } from "../components/BrandWatermark";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../hooks/useAuth";
 
@@ -222,6 +223,8 @@ export function LoginPage() {
               <button type="submit" disabled={isSubmitting} className="brand-button w-full disabled:cursor-not-allowed disabled:opacity-70">
                 {isSubmitting ? "Iniciando sesión..." : "Iniciar sesión"}
               </button>
+
+              <BrandWatermark />
             </form>
           </article>
         </div>
